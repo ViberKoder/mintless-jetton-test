@@ -40,6 +40,8 @@ API_KEY can be obtained on https://toncenter.com or https://testnet.toncenter.co
 
 Check [generateTestJetton](./scripts/generateTestJetton.ts) as example of deploying mintless jetton.
 
-**Production deploy (RU):** see [DEPLOY.ru.md](./DEPLOY.ru.md) — `build:airdrop`, `deployMintless`, Railway claim API (`backend/src/server.ts`, TEP-176).
+**Web minter (рекомендуется):** [minter/](./minter/) — форма metadata + airdrop, БД, Merkle, TON Connect деплой, Claim API. Деплой на Vercel/Railway.
+
+**CLI deploy (RU):** [DEPLOY.ru.md](./DEPLOY.ru.md) — `build:airdrop`, `deployMintless`, claim API (`backend/src/server.ts`).
 
 Legacy demo: [claimApi.ts](./scripts/claimApi.ts). For millions of users use https://github.com/Trinketer22/proof-machine.

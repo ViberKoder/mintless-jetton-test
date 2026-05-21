@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Jetton {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  status          String   @default("draft")
+
+  name            String
+  symbol          String
+  decimals        Int      @default(9)
+  description     String   @default("")
+  image           String   @default("")
+
+  adminAddress    String?
+  minterAddress   String?
+  network         String?
+
+  merkleRoot      String
+  airdropBoc      String
+  recipientCount  Int
+  totalSupply     String
+}

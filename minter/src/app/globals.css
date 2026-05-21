@@ -1,0 +1,174 @@
+:root {
+  --bg: #0b0f14;
+  --card: #141b24;
+  --border: #243041;
+  --text: #e8eef6;
+  --muted: #8fa3b8;
+  --accent: #3b9eff;
+  --accent-hover: #5aafff;
+  --success: #3dd68c;
+  --error: #ff6b6b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin: 0 0 8px;
+}
+
+h2 {
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+input,
+textarea {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+textarea {
+  min-height: 160px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+}
+
+.btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.steps {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.step {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.step.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.step.done {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.error {
+  color: var(--error);
+  font-size: 0.9rem;
+  margin-top: 8px;
+}
+
+.success-box {
+  border: 1px solid var(--success);
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+.code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+  background: var(--bg);
+  padding: 8px;
+  border-radius: 6px;
+  margin-top: 6px;
+}
+
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
