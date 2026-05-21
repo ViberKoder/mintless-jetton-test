@@ -6,6 +6,8 @@
         "build": "npx blueprint build",
         "test": "jest",
         "deploy": "npx blueprint run",
+        "build:airdrop": "ts-node scripts/buildAirdrop.ts",
+        "start:api": "ts-node backend/src/server.ts",
         "prettier": "npx prettier --write '{test,contracts,build}/**/*.{ts,js,json}'"
     },
     "devDependencies": {

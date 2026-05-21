@@ -3,6 +3,10 @@
 node_modules
 .env*
 !.env.example
+data/airdrop.json
+data/airdropData.boc
+data/merkle.json
+data/minter.json
 .wget-hsts
 bin
 .DS_Store

@@ -38,4 +38,8 @@ API_KEY can be obtained on https://toncenter.com or https://testnet.toncenter.co
 
 ## Examples
 
-Check [generateTestJetton](./scripts/generateTestJetton.ts) as example of deploying mintless jetton and [claimApi.ts](./scripts/claimApi.ts) for example api endpoint. Note, `claimAPI.ts` is not intended to be used for millions of users, check https://github.com/Trinketer22/proof-machine for mass-scale example.
+Check [generateTestJetton](./scripts/generateTestJetton.ts) as example of deploying mintless jetton.
+
+**Production deploy (RU):** see [DEPLOY.ru.md](./DEPLOY.ru.md) — `build:airdrop`, `deployMintless`, Railway claim API (`backend/src/server.ts`, TEP-176).
+
+Legacy demo: [claimApi.ts](./scripts/claimApi.ts). For millions of users use https://github.com/Trinketer22/proof-machine.
