@@ -1,7 +1,10 @@
+# В Railway укажите Root Directory = minter
+# См. minter/RAILWAY.md
+
 [build]
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "npm run start:api"
-healthcheckPath = "/health"
+startCommand = "cd minter && npm run start"
+healthcheckPath = "/"
 restartPolicyType = "ON_FAILURE"

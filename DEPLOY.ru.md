@@ -1,6 +1,14 @@
 # Деплой Mintless Jetton
 
-## Рекомендуется: веб-минтер
+## Railway (рекомендуется)
+
+**[minter/RAILWAY.md](./minter/RAILWAY.md)** — пошагово. Prisma/Postgres/`db:push` уже в `npm run build`, вручную ничего не настраивайте.
+
+Root Directory в Railway: **`minter`**.
+
+---
+
+## Веб-минтер (общее)
 
 Папка **[minter/](./minter/)** — полноценное приложение:
 

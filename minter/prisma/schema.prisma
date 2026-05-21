@@ -2,8 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Railway: добавьте плагин PostgreSQL — DATABASE_URL подставится сам
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

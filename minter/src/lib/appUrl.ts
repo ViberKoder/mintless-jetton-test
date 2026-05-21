@@ -1,12 +1,22 @@
 export function getAppUrl(): string {
-    const url = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL;
-    if (!url) {
-        return 'http://localhost:3000';
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+        return normalizeUrl(process.env.NEXT_PUBLIC_APP_URL);
     }
-    if (url.startsWith('http')) {
-        return url.replace(/\/$/, '');
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
     }
-    return `https://${url}`.replace(/\/$/, '');
+    if (process.env.VERCEL_URL) {
+        return normalizeUrl(process.env.VERCEL_URL);
+    }
+    return 'http://localhost:3000';
+}
+
+function normalizeUrl(url: string): string {
+    const trimmed = url.replace(/\/$/, '');
+    if (trimmed.startsWith('http')) {
+        return trimmed;
+    }
+    return `https://${trimmed}`;
 }
 
 export function jettonMetadataUrl(jettonId: string): string {
