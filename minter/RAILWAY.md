@@ -10,15 +10,13 @@
 2. Репозиторий: `mintless-jetton-test`
 3. Ветка: `cursor/mintless-minter-app-a16e` (или `main` после merge)
 
-### 2. Root Directory
+### 2. Root Directory (важно)
 
-В настройках сервиса → **Settings** → **Root Directory**:
+**Вариант A (рекомендуется):** Settings → **Root Directory** → `minter`
 
-```
-minter
-```
+**Вариант B:** Root Directory пустой — в корне репо `npm run build` уже идёт в `minter/` (см. `railway.toml` / `nixpacks.toml`)
 
-Без этого Railway соберёт не то приложение.
+Если в логах видите `ton-stable` и `blueprint build` — Railway собирает **не** минтер. Задайте Root Directory = `minter` или сделайте Redeploy после pull `main`.
 
 ### 3. PostgreSQL
 

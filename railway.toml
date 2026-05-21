@@ -1,8 +1,7 @@
-# В Railway укажите Root Directory = minter
-# См. minter/RAILWAY.md
-
+# Сборка веб-минтера из папки minter (не blueprint в корне)
 [build]
 builder = "NIXPACKS"
+buildCommand = "cd minter && npm ci && npm run build"
 
 [deploy]
 startCommand = "cd minter && npm run start"

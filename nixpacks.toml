@@ -1,0 +1,14 @@
+# Railway/Nixpacks: деплой Next.js из minter/, не контрактов из корня
+[phases.setup]
+nixPkgs = ["nodejs_20", "openssl"]
+
+[phases.install]
+dependsOn = ["setup"]
+cmds = ["cd minter && npm ci"]
+
+[phases.build]
+dependsOn = ["install"]
+cmds = ["cd minter && npm run build"]
+
+[start]
+cmd = "cd minter && npm run start"

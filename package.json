@@ -3,7 +3,9 @@
     "description": "",
     "version": "0.1.0",
     "scripts": {
-        "build": "npx blueprint build",
+        "build": "cd minter && npm ci && npm run build",
+        "start": "cd minter && npm run start",
+        "build:contracts": "npx blueprint build",
         "test": "jest",
         "deploy": "npx blueprint run",
         "build:airdrop": "ts-node scripts/buildAirdrop.ts",
