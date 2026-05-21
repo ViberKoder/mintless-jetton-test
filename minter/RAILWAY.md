@@ -37,11 +37,11 @@
 
 ### 5. Deploy
 
-**Deploy** — при сборке выполнится:
+**Deploy** — при сборке: `prisma generate` + `next build` (без БД).
 
-- `prisma generate`
-- `prisma db push` (создаст таблицы)
-- `next build`
+При **старте** контейнера: `prisma db push` (создаст таблицы — Postgres уже доступен).
+
+> Postgres на Railway недоступен на этапе build, только при запуске.
 
 ### 6. Домен
 
