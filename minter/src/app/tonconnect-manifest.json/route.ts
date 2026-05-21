@@ -5,7 +5,7 @@ export async function GET() {
     const url = getAppUrl();
     return NextResponse.json(
         {
-            url: 'https://thorough-love-production-f1eb.up.railway.app'
+            url,
             name: 'Mintless Jetton Minter',
             iconUrl: 'https://ton.org/download/ton_symbol.png',
         },
