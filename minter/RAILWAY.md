@@ -30,8 +30,10 @@
 
 | Имя | Значение |
 |-----|----------|
-| `NEXT_PUBLIC_APP_URL` | `https://${{RAILWAY_PUBLIC_DOMAIN}}` |
 | `NEXT_PUBLIC_TON_NETWORK` | `testnet` (или `mainnet`) |
+
+`NEXT_PUBLIC_APP_URL` — **не обязателен** (URL берётся из домена Railway автоматически).  
+Если задавали `https://${{RAILWAY_PUBLIC_DOMAIN}}` и TON Connect ломается — **удалите** эту переменную и Redeploy.
 
 `DATABASE_URL` из Postgres **не трогайте** — подставится сам.
 

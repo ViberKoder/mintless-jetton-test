@@ -1,8 +1,10 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { jettonClaimApiUrl, jettonMetadataUrl } from '@/lib/appUrl';
 
 export default async function JettonPage({ params }: { params: { id: string } }) {
+    const reqHeaders = await headers();
     const jetton = await prisma.jetton.findUnique({ where: { id: params.id } });
 
     if (!jetton) {
@@ -38,11 +40,11 @@ export default async function JettonPage({ params }: { params: { id: string } })
                 <p className="muted" style={{ marginTop: 12 }}>
                     Metadata:
                 </p>
-                <div className="code">{jettonMetadataUrl(jetton.id)}</div>
+                <div className="code">{jettonMetadataUrl(jetton.id, reqHeaders)}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Claim API:
                 </p>
-                <div className="code">{jettonClaimApiUrl(jetton.id)}</div>
+                <div className="code">{jettonClaimApiUrl(jetton.id, reqHeaders)}</div>
             </div>
         </main>
     );

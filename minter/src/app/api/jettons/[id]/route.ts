@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { jettonClaimApiUrl, jettonMetadataUrl } from '@/lib/appUrl';
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     const jetton = await prisma.jetton.findUnique({ where: { id: params.id } });
     if (!jetton) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -22,8 +22,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         adminAddress: jetton.adminAddress,
         minterAddress: jetton.minterAddress,
         network: jetton.network,
-        metadataUrl: jettonMetadataUrl(jetton.id),
-        claimApiUrl: jettonClaimApiUrl(jetton.id),
+        metadataUrl: jettonMetadataUrl(jetton.id, req.headers),
+        claimApiUrl: jettonClaimApiUrl(jetton.id, req.headers),
         createdAt: jetton.createdAt,
     });
 }

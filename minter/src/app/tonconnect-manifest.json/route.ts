@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
-import { getAppUrl } from '@/lib/appUrl';
+import { NextRequest, NextResponse } from 'next/server';
+import { resolveAppUrl } from '@/lib/appUrl';
 
-export async function GET() {
-    const url = getAppUrl();
+export async function GET(request: NextRequest) {
+    const url = resolveAppUrl(request.headers);
     return NextResponse.json(
         {
             url,
@@ -11,7 +11,8 @@ export async function GET() {
         },
         {
             headers: {
-                'Cache-Control': 'public, max-age=300',
+                'Cache-Control': 'public, max-age=60',
+                'Access-Control-Allow-Origin': '*',
             },
         },
     );

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         const admin = Address.parse(adminRaw);
         const merkleRoot = BigInt(jetton.merkleRoot);
-        const metadataUri = jettonMetadataUrl(jetton.id);
+        const metadataUri = jettonMetadataUrl(jetton.id, req.headers);
         const deploy = buildMinterDeploy({ admin, merkleRoot, metadataUri });
 
         await prisma.jetton.update({
