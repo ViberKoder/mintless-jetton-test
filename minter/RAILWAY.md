@@ -49,11 +49,23 @@
 
 **Settings** → **Networking** → **Generate Domain** → откройте `https://ваш-проект.up.railway.app`
 
+## API (TEP-176) — только адрес jetton master
+
+Без внутренних `id`. Пример для master `0:abcd...`:
+
+| Endpoint | URL |
+|----------|-----|
+| Metadata | `/api/jettons/0%3Aabcd.../jetton.json` |
+| Claim | `/api/jettons/0%3Aabcd.../wallet/0%3Aowner...` |
+| Merkle dump | `/api/jettons/0%3Aabcd.../merkle-dump` |
+
+В path master и owner — **URL-encoded** raw (`0%3A...`).
+
 ## Как пользоваться сайтом
 
 1. TON Connect — кошелёк
 2. Метаданные + airdrop JSON
-3. «Собрать Merkle tree»
+3. «Собрать Merkle tree» — покажет **jetton master** (ещё до деплоя)
 4. «Создать jetton» (~1.5 TON в testnet)
 
 ## Локально (опционально)

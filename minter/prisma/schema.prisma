@@ -22,7 +22,7 @@ model Jetton {
   image           String   @default("")
 
   adminAddress    String?
-  minterAddress   String?
+  minterAddress   String   @unique
   network         String?
 
   merkleRoot      String

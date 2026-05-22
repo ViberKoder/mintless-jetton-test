@@ -1,3 +1,6 @@
+import { Address } from '@ton/core';
+import { masterToPath } from './master';
+
 function isValidOrigin(url: string): boolean {
     try {
         const u = new URL(url);
@@ -22,7 +25,6 @@ function normalizeUrl(url: string): string {
     }
 }
 
-/** URL из заголовков запроса (Railway / reverse proxy) — самый надёжный способ */
 export function getAppUrlFromHeaders(headers: Headers): string | null {
     const host = (headers.get('x-forwarded-host') ?? headers.get('host'))?.split(',')[0]?.trim();
     const proto = (headers.get('x-forwarded-proto') ?? 'https').split(',')[0]?.trim() || 'https';
@@ -66,19 +68,24 @@ export function resolveAppUrl(headers?: Headers): string {
     return getAppUrl();
 }
 
-export function jettonMetadataUrl(jettonId: string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${jettonId}/jetton.json`;
+function masterSegment(master: Address | string, headers?: Headers): string {
+    const addr = typeof master === 'string' ? Address.parse(master) : master;
+    return masterToPath(addr);
+}
+
+export function jettonMetadataUrl(master: Address | string, headers?: Headers): string {
+    return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}/jetton.json`;
 }
 
 /** TEP-176 root URI; wallet appends `/wallet/{owner_raw}` */
-export function customPayloadApiRoot(jettonId: string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${jettonId}`;
+export function customPayloadApiRoot(master: Address | string, headers?: Headers): string {
+    return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}`;
 }
 
-export function jettonClaimApiUrl(jettonId: string, headers?: Headers): string {
-    return `${customPayloadApiRoot(jettonId, headers)}/wallet/{owner_raw_address}`;
+export function jettonClaimApiUrl(master: Address | string, headers?: Headers): string {
+    return `${customPayloadApiRoot(master, headers)}/wallet/{owner_raw_address}`;
 }
 
-export function mintlessMerkleDumpUrl(jettonId: string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${jettonId}/merkle-dump`;
+export function mintlessMerkleDumpUrl(master: Address | string, headers?: Headers): string {
+    return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}/merkle-dump`;
 }

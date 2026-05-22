@@ -3,11 +3,12 @@ import { Address } from '@ton/core';
 import { prisma } from '@/lib/db';
 import { buildMinterDeploy } from '@/lib/deploy';
 import { jettonMetadataUrl } from '@/lib/appUrl';
+import { findJettonByMasterParam } from '@/lib/jettonDb';
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: { master: string } }) {
     try {
-        const jetton = await prisma.jetton.findUnique({ where: { id: params.id } });
-        if (!jetton) {
+        const jetton = await findJettonByMasterParam(params.master);
+        if (!jetton || !jetton.minterAddress) {
             return NextResponse.json({ error: 'Jetton not found' }, { status: 404 });
         }
 
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
         const admin = Address.parse(adminRaw);
         const merkleRoot = BigInt(jetton.merkleRoot);
-        const metadataUri = jettonMetadataUrl(jetton.id, req.headers);
+        const metadataUri = jettonMetadataUrl(jetton.minterAddress, req.headers);
         const deploy = buildMinterDeploy({ admin, merkleRoot, metadataUri });
 
         await prisma.jetton.update({
@@ -28,7 +29,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         });
 
         return NextResponse.json({
-            jettonId: jetton.id,
             metadataUri,
             merkleRoot: jetton.merkleRoot,
             ...deploy,

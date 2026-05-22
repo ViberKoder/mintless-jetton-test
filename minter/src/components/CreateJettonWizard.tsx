@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { TonConnectButton } from './TonConnectButton';
+import { masterToPath } from '@/lib/master';
+import { Address } from '@ton/core';
 
 const AIRDROP_EXAMPLE = `[
   {
@@ -14,10 +16,12 @@ const AIRDROP_EXAMPLE = `[
 ]`;
 
 type Preview = {
-    id: string;
+    minterAddressRaw: string;
+    minterPath: string;
     merkleRoot: string;
     recipientCount: number;
     totalSupply: string;
+    metadataUri: string;
 };
 
 type DeployInfo = {
@@ -48,6 +52,10 @@ export function CreateJettonWizard() {
     const network = process.env.NEXT_PUBLIC_TON_NETWORK === 'mainnet' ? 'mainnet' : 'testnet';
 
     async function handleCreateDraft() {
+        if (!wallet?.account?.address) {
+            setError('Подключите кошелёк TON Connect');
+            return;
+        }
         setError(null);
         setLoading(true);
         try {
@@ -61,17 +69,21 @@ export function CreateJettonWizard() {
                     description,
                     image,
                     airdropJson,
-                    adminAddress: wallet?.account?.address,
+                    adminAddress: wallet.account.address,
                     network,
                 }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Ошибка создания');
+
+            const master = Address.parse(data.minterAddressRaw);
             setPreview({
-                id: data.id,
+                minterAddressRaw: data.minterAddressRaw,
+                minterPath: masterToPath(master),
                 merkleRoot: data.merkleRoot,
                 recipientCount: data.recipientCount,
                 totalSupply: data.totalSupply,
+                metadataUri: data.metadataUri,
             });
             setStep(3);
         } catch (e) {
@@ -89,7 +101,7 @@ export function CreateJettonWizard() {
         setError(null);
         setLoading(true);
         try {
-            const deployRes = await fetch(`/api/jettons/${preview.id}/deploy`, {
+            const deployRes = await fetch(`/api/jettons/${preview.minterPath}/deploy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ adminAddress: wallet.account.address }),
@@ -108,12 +120,11 @@ export function CreateJettonWizard() {
                 ],
             });
 
-            await fetch(`/api/jettons/${preview.id}`, {
+            await fetch(`/api/jettons/${preview.minterPath}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status: 'deployed',
-                    minterAddress: deployData.minterAddress,
                     adminAddress: wallet.account.address,
                     network,
                 }),
@@ -124,7 +135,7 @@ export function CreateJettonWizard() {
                 minterAddress: deployData.minterAddress,
                 minterAddressRaw: deployData.minterAddressRaw,
                 metadataUri: deployData.metadataUri,
-                claimApiUrl: `${base}/api/jettons/${preview.id}/wallet/{owner_raw}`,
+                claimApiUrl: `${base}/api/jettons/${preview.minterPath}/wallet/{owner_raw}`,
             });
             setStep(4);
             void result;
@@ -171,11 +182,7 @@ export function CreateJettonWizard() {
                         </p>
                     )}
                     <div style={{ marginTop: 16 }}>
-                        <button
-                            className="btn"
-                            disabled={!wallet}
-                            onClick={() => setStep(2)}
-                        >
+                        <button className="btn" disabled={!wallet} onClick={() => setStep(2)}>
                             Далее
                         </button>
                     </div>
@@ -227,7 +234,7 @@ export function CreateJettonWizard() {
                         </button>
                         <button
                             className="btn"
-                            disabled={loading || !name || !symbol}
+                            disabled={loading || !name || !symbol || !wallet}
                             onClick={handleCreateDraft}
                         >
                             {loading ? 'Считаем Merkle…' : 'Собрать Merkle tree'}
@@ -239,7 +246,9 @@ export function CreateJettonWizard() {
             {step === 3 && preview && (
                 <div className="card">
                     <h2>3. Деплой jetton</h2>
-                    <p className="muted">Сеть: <strong>{network}</strong>. БД уже сохранила Merkle root и airdrop.</p>
+                    <p className="muted">Сеть: <strong>{network}</strong>. Адрес minter уже вычислен (до деплоя).</p>
+                    <p className="muted">Jetton master (raw):</p>
+                    <div className="code">{preview.minterAddressRaw}</div>
                     <p>
                         Получателей: <strong>{preview.recipientCount}</strong>
                     </p>
@@ -262,7 +271,7 @@ export function CreateJettonWizard() {
                 </div>
             )}
 
-            {step === 4 && deployed && (
+            {step === 4 && deployed && preview && (
                 <div className="card success-box">
                     <h2>Jetton создан</h2>
                     <p className="muted">Minter (jetton master):</p>
@@ -272,17 +281,15 @@ export function CreateJettonWizard() {
                     </p>
                     <div className="code">{deployed.metadataUri}</div>
                     <p className="muted" style={{ marginTop: 12 }}>
-                        Claim API (TEP-176) для кошельков — подставьте raw owner:
+                        Claim API — подставьте raw owner:
                     </p>
                     <div className="code">{deployed.claimApiUrl}</div>
                     <p className="muted" style={{ marginTop: 16 }}>
-                        Custom payload и Merkle proof отдаёт этот URL автоматически из БД.
+                        Все URL используют адрес jetton master, без внутренних id.
                     </p>
-                    {preview && (
-                        <p style={{ marginTop: 16 }}>
-                            <a href={`/jetton/${preview.id}`}>Страница jetton →</a>
-                        </p>
-                    )}
+                    <p style={{ marginTop: 16 }}>
+                        <a href={`/jetton/${preview.minterPath}`}>Страница jetton →</a>
+                    </p>
                 </div>
             )}
         </div>

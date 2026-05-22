@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
 import { customPayloadApiRoot, mintlessMerkleDumpUrl } from '@/lib/appUrl';
+import { findJettonByMasterParam } from '@/lib/jettonDb';
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-    const jetton = await prisma.jetton.findUnique({ where: { id: params.id } });
-    if (!jetton) {
+export async function GET(req: NextRequest, { params }: { params: { master: string } }) {
+    const jetton = await findJettonByMasterParam(params.master);
+    if (!jetton || !jetton.minterAddress) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
+    const master = jetton.minterAddress;
     const headers = req.headers;
 
     return NextResponse.json(
@@ -17,8 +18,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             decimals: String(jetton.decimals),
             description: jetton.description,
             image: jetton.image || undefined,
-            custom_payload_api_uri: customPayloadApiRoot(jetton.id, headers),
-            mintless_merkle_dump_uri: mintlessMerkleDumpUrl(jetton.id, headers),
+            custom_payload_api_uri: customPayloadApiRoot(master, headers),
+            mintless_merkle_dump_uri: mintlessMerkleDumpUrl(master, headers),
         },
         {
             headers: {

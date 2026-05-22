@@ -6,6 +6,58 @@ import {
     loadMinterCode,
     loadWalletCodeRaw,
 } from './jetton';
+import { masterToPath } from './master';
+
+export function metadataUriForMaster(baseUrl: string, master: Address): string {
+    return `${baseUrl.replace(/\/$/, '')}/api/jettons/${masterToPath(master)}/jetton.json`;
+}
+
+/**
+ * Minter address depends on metadata URI and vice versa — iterate until stable.
+ */
+export function resolveMinterConfig(params: {
+    admin: Address;
+    merkleRoot: bigint;
+    baseUrl: string;
+}): { minter: JettonMinter; metadataUri: string; master: Address } {
+    const minterCode = loadMinterCode();
+    const walletCode = jettonWalletCodeFromLibrary(loadWalletCodeRaw());
+    const base = params.baseUrl.replace(/\/$/, '');
+
+    let metadataUri = `${base}/api/jettons/${masterToPath(params.admin)}/jetton.json`;
+    let minter = JettonMinter.createFromConfig(
+        {
+            admin: params.admin,
+            wallet_code: walletCode,
+            merkle_root: params.merkleRoot,
+            jetton_content: jettonContentToCell({ uri: metadataUri }),
+        },
+        minterCode,
+    );
+
+    for (let i = 0; i < 12; i++) {
+        const nextUri = metadataUriForMaster(base, minter.address);
+        if (nextUri === metadataUri) {
+            return { minter, metadataUri, master: minter.address };
+        }
+        metadataUri = nextUri;
+        minter = JettonMinter.createFromConfig(
+            {
+                admin: params.admin,
+                wallet_code: walletCode,
+                merkle_root: params.merkleRoot,
+                jetton_content: jettonContentToCell({ uri: metadataUri }),
+            },
+            minterCode,
+        );
+    }
+
+    return {
+        minter,
+        metadataUri: metadataUriForMaster(base, minter.address),
+        master: minter.address,
+    };
+}
 
 export function buildMinterDeploy(params: {
     admin: Address;

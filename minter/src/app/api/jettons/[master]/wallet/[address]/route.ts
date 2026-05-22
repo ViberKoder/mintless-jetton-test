@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Address, Cell } from '@ton/core';
-import { prisma } from '@/lib/db';
 import { cellToDictionary } from '@/lib/airdrop';
 import { buildWalletClaimResponse } from '@/lib/claim';
 import { jettonWalletCodeFromLibrary, loadWalletCodeRaw } from '@/lib/jetton';
+import { findJettonByMasterParam } from '@/lib/jettonDb';
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string; address: string } }) {
-    const jetton = await prisma.jetton.findUnique({ where: { id: params.id } });
+export async function GET(_req: NextRequest, { params }: { params: { master: string; address: string } }) {
+    const jetton = await findJettonByMasterParam(params.master);
     if (!jetton || !jetton.minterAddress) {
         return NextResponse.json({ error: 'Jetton not deployed' }, { status: 404 });
     }
