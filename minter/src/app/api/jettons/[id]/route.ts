@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { jettonClaimApiUrl, jettonMetadataUrl } from '@/lib/appUrl';
+import { customPayloadApiRoot, jettonClaimApiUrl, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
     const jetton = await prisma.jetton.findUnique({ where: { id: params.id } });
@@ -23,7 +23,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         minterAddress: jetton.minterAddress,
         network: jetton.network,
         metadataUrl: jettonMetadataUrl(jetton.id, req.headers),
+        customPayloadApiUri: customPayloadApiRoot(jetton.id, req.headers),
         claimApiUrl: jettonClaimApiUrl(jetton.id, req.headers),
+        merkleDumpUrl: mintlessMerkleDumpUrl(jetton.id, req.headers),
         createdAt: jetton.createdAt,
     });
 }

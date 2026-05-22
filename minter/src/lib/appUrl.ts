@@ -70,6 +70,15 @@ export function jettonMetadataUrl(jettonId: string, headers?: Headers): string {
     return `${resolveAppUrl(headers)}/api/jettons/${jettonId}/jetton.json`;
 }
 
+/** TEP-176 root URI; wallet appends `/wallet/{owner_raw}` */
+export function customPayloadApiRoot(jettonId: string, headers?: Headers): string {
+    return `${resolveAppUrl(headers)}/api/jettons/${jettonId}`;
+}
+
 export function jettonClaimApiUrl(jettonId: string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${jettonId}/wallet/{owner_raw_address}`;
+    return `${customPayloadApiRoot(jettonId, headers)}/wallet/{owner_raw_address}`;
+}
+
+export function mintlessMerkleDumpUrl(jettonId: string, headers?: Headers): string {
+    return `${resolveAppUrl(headers)}/api/jettons/${jettonId}/merkle-dump`;
 }
