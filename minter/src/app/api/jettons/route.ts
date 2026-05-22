@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
 
         const masterRaw = master.toRawString();
 
+        const existing = await prisma.jetton.findUnique({ where: { minterAddress: masterRaw } });
+        if (existing) {
+            return NextResponse.json({ error: 'Jetton with this master address already exists' }, { status: 409 });
+        }
+
         const jetton = await prisma.jetton.create({
             data: {
                 name: body.name,

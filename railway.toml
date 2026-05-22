@@ -5,5 +5,5 @@ buildCommand = "cd minter && npm ci && npm run build"
 
 [deploy]
 startCommand = "cd minter && npm run start"
-healthcheckPath = "/"
+healthcheckPath = "/api/health"
 restartPolicyType = "ON_FAILURE"
