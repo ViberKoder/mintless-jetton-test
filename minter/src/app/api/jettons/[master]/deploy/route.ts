@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Address } from '@ton/core';
 import { prisma } from '@/lib/db';
-import { buildMinterDeploy } from '@/lib/deploy';
-import { jettonMetadataUrl } from '@/lib/appUrl';
+import { buildMinterDeploy, resolveMinterConfig } from '@/lib/deploy';
+import { resolveAppUrl } from '@/lib/appUrl';
 import { findJettonByMasterParam } from '@/lib/jettonDb';
 
 export async function POST(req: NextRequest, { params }: { params: { master: string } }) {
@@ -20,13 +20,29 @@ export async function POST(req: NextRequest, { params }: { params: { master: str
 
         const admin = Address.parse(adminRaw);
         const merkleRoot = BigInt(jetton.merkleRoot);
-        const metadataUri = jettonMetadataUrl(jetton.minterAddress, req.headers);
+        const { master, metadataUri } = resolveMinterConfig({
+            admin,
+            merkleRoot,
+            baseUrl: resolveAppUrl(req.headers),
+        });
         const deploy = buildMinterDeploy({ admin, merkleRoot, metadataUri });
+
+        if (!master.equals(Address.parse(deploy.minterAddressRaw))) {
+            return NextResponse.json(
+                {
+                    error: 'Minter address fixpoint mismatch — проверьте admin и merkle root',
+                    expected: master.toRawString(),
+                    actual: deploy.minterAddressRaw,
+                },
+                { status: 500 },
+            );
+        }
 
         await prisma.jetton.update({
             where: { id: jetton.id },
             data: {
                 adminAddress: admin.toString(),
+                minterAddress: master.toRawString(),
                 deployedMinterAddress: deploy.minterAddressRaw,
                 status: 'pending_deploy',
             },
@@ -35,6 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: { master: str
         return NextResponse.json({
             metadataUri,
             merkleRoot: jetton.merkleRoot,
+            addressAligned: true,
             ...deploy,
         });
     } catch (e) {

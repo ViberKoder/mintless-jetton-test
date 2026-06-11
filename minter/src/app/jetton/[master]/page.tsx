@@ -1,7 +1,14 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
-import { jettonClaimApiUrl, jettonMetadataUrl, jettonWalletsBatchUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
+import {
+    jettonClaimApiUrl,
+    jettonMetadataUrl,
+    jettonWalletsBatchUrl,
+    mintlessMerkleDumpUrl,
+    resolveAppUrl,
+} from '@/lib/appUrl';
+import { runCompliance } from '@/lib/compliance';
 import { ClaimJettonPanel } from '@/components/ClaimJettonPanel';
 import { masterToPath } from '@/lib/master';
 
@@ -21,6 +28,8 @@ export default async function JettonPage({ params }: { params: { master: string 
     const metadataMaster = jetton.minterAddress;
     const onChainMaster = await resolveOnChainMinterAddress(jetton, reqHeaders);
     const onChainPath = masterToPath(onChainMaster);
+    const compliance = await runCompliance(jetton, reqHeaders);
+    const appUrl = resolveAppUrl(reqHeaders);
 
     return (
         <main className="container">
@@ -35,6 +44,34 @@ export default async function JettonPage({ params }: { params: { master: string 
                 jettonSymbol={jetton.symbol}
                 decimals={jetton.decimals}
             />
+
+            <div className="card">
+                <h2>Compliance: {compliance.score}/{compliance.total}</h2>
+                <p className="muted">{compliance.summary}</p>
+                <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.9rem' }}>
+                    {compliance.checks.map((c) => (
+                        <li key={c.id} style={{ color: c.pass ? 'var(--success)' : 'var(--muted)' }}>
+                            {c.pass ? '✓' : '○'} {c.label}
+                        </li>
+                    ))}
+                </ul>
+                <p className="muted" style={{ marginTop: 12 }}>
+                    JSON:{' '}
+                    <span className="code">
+                        {appUrl}/api/jettons/{onChainPath}/compliance
+                    </span>
+                </p>
+                {compliance.testnetRedeploy?.recommended && (
+                    <div className="success-box" style={{ marginTop: 12 }}>
+                        <strong>Testnet redeploy</strong> обходит кэш индексаторов:
+                        <ol style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+                            {compliance.testnetRedeploy.steps.map((step) => (
+                                <li key={step}>{step}</li>
+                            ))}
+                        </ol>
+                    </div>
+                )}
+            </div>
 
             <div className="card">
                 <h2>Почему jetton не виден в кошельке?</h2>
