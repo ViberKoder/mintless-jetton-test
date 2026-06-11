@@ -399,6 +399,11 @@ export class JettonMinter implements Contract {
         return res.stack.readBigNumber();
     }
 
+    async getMintlessAirdropHashmapRoot(provider: ContractProvider): Promise<bigint> {
+        const res = await provider.get('get_mintless_airdrop_hashmap_root', []);
+        return res.stack.readBigNumber();
+    }
+
     async getJettonData(provider: ContractProvider) {
         let res = await provider.get('get_jetton_data', []);
         let totalSupply = res.stack.readBigNumber();
