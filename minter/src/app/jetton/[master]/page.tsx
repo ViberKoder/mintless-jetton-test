@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { findJettonByMasterParam } from '@/lib/jettonDb';
+import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
 import { jettonClaimApiUrl, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
 
 export default async function JettonPage({ params }: { params: { master: string } }) {
@@ -16,7 +16,8 @@ export default async function JettonPage({ params }: { params: { master: string 
         );
     }
 
-    const master = jetton.minterAddress;
+    const metadataMaster = jetton.minterAddress;
+    const onChainMaster = await resolveOnChainMinterAddress(jetton, reqHeaders);
 
     return (
         <main className="container">
@@ -29,22 +30,30 @@ export default async function JettonPage({ params }: { params: { master: string 
                     Статус: <strong>{jetton.status}</strong>
                 </p>
                 <p>Получателей: {jetton.recipientCount}</p>
-                <p className="muted">Jetton master (raw):</p>
-                <div className="code">{master}</div>
+                <p className="muted">On-chain jetton master (raw):</p>
+                <div className="code">{onChainMaster.toRawString()}</div>
+                {onChainMaster.toRawString() !== metadataMaster && (
+                    <>
+                        <p className="muted" style={{ marginTop: 12 }}>
+                            Metadata API path (в контракте):
+                        </p>
+                        <div className="code">{metadataMaster}</div>
+                    </>
+                )}
                 <p className="muted">Merkle root:</p>
                 <div className="code">{jetton.merkleRoot}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Metadata:
                 </p>
-                <div className="code">{jettonMetadataUrl(master, reqHeaders)}</div>
+                <div className="code">{jettonMetadataUrl(metadataMaster, reqHeaders)}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Claim API:
                 </p>
-                <div className="code">{jettonClaimApiUrl(master, reqHeaders)}</div>
+                <div className="code">{jettonClaimApiUrl(metadataMaster, reqHeaders)}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Merkle dump:
                 </p>
-                <div className="code">{mintlessMerkleDumpUrl(master, reqHeaders)}</div>
+                <div className="code">{mintlessMerkleDumpUrl(metadataMaster, reqHeaders)}</div>
             </div>
         </main>
     );

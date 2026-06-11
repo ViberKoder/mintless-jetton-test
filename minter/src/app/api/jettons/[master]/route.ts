@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Address } from '@ton/core';
 import { prisma } from '@/lib/db';
-import { findJettonByMasterParam } from '@/lib/jettonDb';
+import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
 import { customPayloadApiRoot, jettonClaimApiUrl, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
 
 export async function GET(req: NextRequest, { params }: { params: { master: string } }) {
@@ -9,7 +10,8 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
-    const master = jetton.minterAddress;
+    const metadataMaster = jetton.minterAddress;
+    const onChainMaster = await resolveOnChainMinterAddress(jetton, req.headers);
 
     return NextResponse.json({
         status: jetton.status,
@@ -22,12 +24,13 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
         recipientCount: jetton.recipientCount,
         totalSupply: jetton.totalSupply,
         adminAddress: jetton.adminAddress,
-        minterAddress: jetton.minterAddress,
+        minterAddress: metadataMaster,
+        deployedMinterAddress: onChainMaster.toRawString(),
         network: jetton.network,
-        metadataUrl: jettonMetadataUrl(master, req.headers),
-        customPayloadApiUri: customPayloadApiRoot(master, req.headers),
-        claimApiUrl: jettonClaimApiUrl(master, req.headers),
-        merkleDumpUrl: mintlessMerkleDumpUrl(master, req.headers),
+        metadataUrl: jettonMetadataUrl(metadataMaster, req.headers),
+        customPayloadApiUri: customPayloadApiRoot(metadataMaster, req.headers),
+        claimApiUrl: jettonClaimApiUrl(metadataMaster, req.headers),
+        merkleDumpUrl: mintlessMerkleDumpUrl(metadataMaster, req.headers),
         createdAt: jetton.createdAt,
     });
 }
@@ -45,6 +48,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { master: st
             status: body.status ?? 'deployed',
             adminAddress: body.adminAddress,
             network: body.network,
+            ...(body.deployedMinterAddress
+                ? { deployedMinterAddress: Address.parse(String(body.deployedMinterAddress)).toRawString() }
+                : {}),
         },
     });
     return NextResponse.json({ ok: true, jetton: updated });

@@ -127,6 +127,7 @@ export function CreateJettonWizard() {
                 body: JSON.stringify({
                     status: 'deployed',
                     adminAddress: wallet.account.address,
+                    deployedMinterAddress: deployData.minterAddressRaw,
                     network,
                 }),
             });

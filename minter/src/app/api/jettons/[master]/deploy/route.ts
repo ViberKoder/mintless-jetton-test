@@ -25,7 +25,11 @@ export async function POST(req: NextRequest, { params }: { params: { master: str
 
         await prisma.jetton.update({
             where: { id: jetton.id },
-            data: { adminAddress: admin.toString(), status: 'pending_deploy' },
+            data: {
+                adminAddress: admin.toString(),
+                deployedMinterAddress: deploy.minterAddressRaw,
+                status: 'pending_deploy',
+            },
         });
 
         return NextResponse.json({
