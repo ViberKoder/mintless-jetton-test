@@ -22,7 +22,10 @@ model Jetton {
   image           String   @default("")
 
   adminAddress    String?
+  /// Address embedded in on-chain metadata URI path (API route key)
   minterAddress   String?  @unique
+  /// Actual deployed jetton master on-chain (may differ from minterAddress)
+  deployedMinterAddress String? @unique
   network         String?
 
   merkleRoot      String

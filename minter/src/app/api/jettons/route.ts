@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/db';
 import { buildAirdropArtifacts, parseAirdropJson } from '@/lib/airdrop';
 import { resolveAppUrl } from '@/lib/appUrl';
-import { resolveMinterConfig } from '@/lib/deploy';
+import { buildMinterDeploy, resolveMinterConfig } from '@/lib/deploy';
 import { masterToPath } from '@/lib/master';
 
 const createSchema = z.object({
@@ -32,6 +32,11 @@ export async function POST(req: NextRequest) {
         });
 
         const masterRaw = master.toRawString();
+        const deployPreview = buildMinterDeploy({
+            admin,
+            merkleRoot: BigInt(artifacts.merkleRootHex),
+            metadataUri,
+        });
 
         const existing = await prisma.jetton.findUnique({ where: { minterAddress: masterRaw } });
         if (existing) {
@@ -51,6 +56,7 @@ export async function POST(req: NextRequest) {
                 totalSupply: artifacts.totalSupply,
                 adminAddress: admin.toString(),
                 minterAddress: masterRaw,
+                deployedMinterAddress: deployPreview.minterAddressRaw,
                 network: body.network,
                 status: 'draft',
             },
@@ -59,6 +65,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             minterAddress: master.toString({ bounceable: true, urlSafe: true }),
             minterAddressRaw: masterRaw,
+            deployedMinterAddress: deployPreview.minterAddressRaw,
             metadataUri,
             merkleRoot: artifacts.merkleRootHex,
             recipientCount: artifacts.recipientCount,

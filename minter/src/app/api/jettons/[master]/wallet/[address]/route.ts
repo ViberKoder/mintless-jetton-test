@@ -3,9 +3,9 @@ import { Address, Cell } from '@ton/core';
 import { cellToDictionary } from '@/lib/airdrop';
 import { buildWalletClaimResponse } from '@/lib/claim';
 import { jettonWalletCodeFromLibrary, loadWalletCodeRaw } from '@/lib/jetton';
-import { findJettonByMasterParam } from '@/lib/jettonDb';
+import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
 
-export async function GET(_req: NextRequest, { params }: { params: { master: string; address: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { master: string; address: string } }) {
     const jetton = await findJettonByMasterParam(params.master);
     if (!jetton || !jetton.minterAddress) {
         return NextResponse.json({ error: 'Jetton not deployed' }, { status: 404 });
@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: { master: str
     }
 
     const walletCode = jettonWalletCodeFromLibrary(loadWalletCodeRaw());
-    const minter = Address.parse(jetton.minterAddress);
+    const minter = await resolveOnChainMinterAddress(jetton, req.headers);
     const merkleRoot = BigInt(jetton.merkleRoot);
 
     const body = buildWalletClaimResponse({
