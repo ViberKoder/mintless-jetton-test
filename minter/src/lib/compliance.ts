@@ -374,9 +374,9 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     const testnetRedeploy = {
         recommended: network === 'mainnet' && indexerPending,
         steps: [
-            'Railway: NEXT_PUBLIC_TON_NETWORK=testnet',
+            'Откройте minter → выберите Testnet в переключателе сети',
             'Testnet: npx blueprint run deployLibrary (если library ещё не опубликована)',
-            'Откройте minter, подключите testnet-кошелёк, создайте новый jetton',
+            'Подключите testnet-кошелёк и создайте новый jetton',
             'В airdrop укажите testnet-адреса получателей',
             'После деплоя откройте /jetton/{master} → Compliance',
             'Проверьте testnet.toncenter.com/api/v3/jetton/wallets?...',
