@@ -9,6 +9,7 @@ type SyncInfo = {
     currentUri: string | null;
     targetUri: string;
     needsSync: boolean;
+    needsBump?: boolean;
     message: {
         address: string;
         amount: string;
@@ -59,7 +60,7 @@ export function SyncMetadataPanel({ masterParam }: Props) {
             const res = await fetch(`/api/jettons/${masterParam}/sync-metadata`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminAddress: adminRaw }),
+                body: JSON.stringify({ adminAddress: adminRaw, action: 'sync' }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -77,6 +78,7 @@ export function SyncMetadataPanel({ masterParam }: Props) {
                 ],
             });
             setSuccess('Транзакция отправлена. Toncenter переиндексирует metadata через несколько минут.');
+            await loadInfo();
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Ошибка отправки');
         } finally {
@@ -84,25 +86,19 @@ export function SyncMetadataPanel({ masterParam }: Props) {
         }
     };
 
-    if (!info) {
+    if (!info || (!info.needsSync && !info.needsBump)) {
         return null;
     }
 
     if (!info.needsSync) {
-        return (
-            <div className="card">
-                <h2>On-chain metadata URI</h2>
-                <p className="muted">URI в контракте уже указывает на on-chain master.</p>
-            </div>
-        );
+        return null;
     }
 
     return (
         <div className="card">
             <h2>Обновить on-chain metadata URI</h2>
             <p className="muted">
-                В контракте сейчас старый путь metadata. Это мешает Toncenter проиндексировать mintless_info.
-                Admin может обновить URI на on-chain master без redeploy.
+                В контракте сейчас старый путь metadata. Admin может обновить URI на on-chain master без redeploy.
             </p>
             <p className="muted">Текущий URI:</p>
             <div className="code">{info.currentUri ?? 'n/a'}</div>

@@ -11,6 +11,7 @@ import {
 import { runCompliance } from '@/lib/compliance';
 import { ClaimJettonPanel } from '@/components/ClaimJettonPanel';
 import { SyncMetadataPanel } from '@/components/SyncMetadataPanel';
+import { ToncenterIndexerPanel } from '@/components/ToncenterIndexerPanel';
 import { masterToPath } from '@/lib/master';
 
 export default async function JettonPage({ params }: { params: { master: string } }) {
@@ -48,6 +49,8 @@ export default async function JettonPage({ params }: { params: { master: string 
 
             <SyncMetadataPanel masterParam={params.master} />
 
+            <ToncenterIndexerPanel masterParam={params.master} />
+
             <div className="card">
                 <h2>Compliance: {compliance.score}/{compliance.total}</h2>
                 <p className="muted">{compliance.summary}</p>
@@ -77,18 +80,14 @@ export default async function JettonPage({ params }: { params: { master: string 
             </div>
 
             <div className="card">
-                <h2>Почему jetton не виден в кошельке?</h2>
+                <h2>Кошельки и индексаторы</h2>
                 <p className="muted">
-                    Mintless jetton — это airdrop до первого claim. Пока получатель не заклеймил токен,
-                    on-chain баланс равен 0, и обычный список jetton в Tonkeeper / MyTonWallet его не
-                    показывает. Кошельки могут отображать unclaimed баланс только если проиндексировали{' '}
-                    <code>mintless_merkle_dump_uri</code> — для кастомных jetton это не обязательно и
-                    часто платная услуга.
+                    <strong>Tonkeeper / Tonviewer</strong> (TonAPI) — уже видят jetton после sync metadata.
+                    <strong> Tonscan / MyTonWallet</strong> (Toncenter) — ждут <code>mintless_info</code> в API
+                    Toncenter; см. блок выше.
                 </p>
                 <p className="muted">
-                    После claim через кнопку выше jetton появится как обычный токен. Альтернатива: попросить
-                    Tonkeeper проиндексировать merkle dump по master-адресу{' '}
-                    <span className="code">{onChainMaster.toRawString()}</span>.
+                    После claim jetton появится везде как обычный токен с on-chain балансом.
                 </p>
             </div>
 

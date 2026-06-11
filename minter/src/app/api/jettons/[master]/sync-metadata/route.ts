@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Address, beginCell, toNano } from '@ton/core';
+import { Address, toNano } from '@ton/core';
 import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
 import { jettonMetadataUrl } from '@/lib/appUrl';
-
-const OP_CHANGE_METADATA_URI = 0xcb862902;
-
-function toncenterBase(network: 'mainnet' | 'testnet'): string {
-    return network === 'testnet' ? 'https://testnet.toncenter.com/api/v3' : 'https://toncenter.com/api/v3';
-}
+import {
+    buildChangeMetadataPayload,
+    bumpMetadataUri,
+    getToncenterIndexerStatus,
+} from '@/lib/toncenterIndexer';
 
 export async function GET(req: NextRequest, { params }: { params: { master: string } }) {
     const jetton = await findJettonByMasterParam(params.master);
@@ -17,41 +16,40 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
 
     const network = jetton.network === 'testnet' ? 'testnet' : 'mainnet';
     const onChainMaster = await resolveOnChainMinterAddress(jetton, req.headers);
-    const targetUri = jettonMetadataUrl(onChainMaster, req.headers);
-    const tcHeaders: Record<string, string> = process.env.TONCENTER_API_KEY
-        ? { 'X-API-Key': process.env.TONCENTER_API_KEY }
-        : {};
-    let currentUri: string | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-        const tcRes = await fetch(
-            `${toncenterBase(network)}/jetton/masters?address=${onChainMaster.toRawString()}&limit=1`,
-            { cache: 'no-store', headers: tcHeaders },
-        );
-        if (tcRes.ok) {
-            const tcData = (await tcRes.json()) as { jetton_masters?: { jetton_content?: { uri?: string } }[] };
-            currentUri = tcData.jetton_masters?.[0]?.jetton_content?.uri ?? null;
-            if (currentUri) {
-                break;
-            }
-        }
-        if (attempt < 2) {
-            await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-        }
-    }
-
-    const body = beginCell().storeUint(OP_CHANGE_METADATA_URI, 32).storeUint(0, 64).storeStringTail(targetUri).endCell();
+    const baseUri = jettonMetadataUrl(onChainMaster, req.headers);
+    const indexer = await getToncenterIndexerStatus({
+        network,
+        onChainMaster,
+        ourMetadataUri: baseUri,
+        adminAddress: jetton.adminAddress,
+    });
+    const currentUri = indexer.onChainMetadataUri;
+    const targetUri = baseUri;
+    const needsSync = currentUri !== targetUri;
+    const needsBump = !needsSync && indexer.cacheStale && indexer.recommendedAction === 'bump_metadata_uri';
 
     return NextResponse.json(
         {
             onChainMaster: onChainMaster.toRawString(),
             currentUri,
             targetUri,
-            needsSync: currentUri !== targetUri,
+            needsSync,
+            needsBump,
+            bumpTargetUri: indexer.bumpTargetUri,
+            toncenterCacheStale: indexer.cacheStale,
+            mintlessInfoIndexed: indexer.mintlessInfoIndexed,
             message: {
                 address: onChainMaster.toString({ bounceable: true, urlSafe: true }),
                 amount: toNano('0.05').toString(),
-                payload: body.toBoc().toString('base64'),
+                payload: buildChangeMetadataPayload(targetUri),
             },
+            bumpMessage: indexer.bumpTargetUri
+                ? {
+                      address: onChainMaster.toString({ bounceable: true, urlSafe: true }),
+                      amount: toNano('0.05').toString(),
+                      payload: buildChangeMetadataPayload(indexer.bumpTargetUri),
+                  }
+                : null,
         },
         {
             headers: {
@@ -80,15 +78,20 @@ export async function POST(req: NextRequest, { params }: { params: { master: str
     }
 
     const onChainMaster = await resolveOnChainMinterAddress(jetton, req.headers);
-    const targetUri = jettonMetadataUrl(onChainMaster, req.headers);
-    const payload = beginCell().storeUint(OP_CHANGE_METADATA_URI, 32).storeUint(0, 64).storeStringTail(targetUri).endCell();
+    const baseUri = jettonMetadataUrl(onChainMaster, req.headers);
+    const action = (body.action as string | undefined) ?? 'sync';
+    const targetUri =
+        action === 'bump'
+            ? bumpMetadataUri(body.metadataUri ? String(body.metadataUri) : baseUri)
+            : baseUri;
 
     return NextResponse.json({
         targetUri,
+        action,
         message: {
             address: onChainMaster.toString({ bounceable: true, urlSafe: true }),
             amount: toNano('0.05').toString(),
-            payload: payload.toBoc().toString('base64'),
+            payload: buildChangeMetadataPayload(targetUri),
         },
     });
 }
