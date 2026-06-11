@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
-import { jettonClaimApiUrl, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
+import { jettonClaimApiUrl, jettonMetadataUrl, jettonWalletsBatchUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
 import { ClaimJettonPanel } from '@/components/ClaimJettonPanel';
 import { masterToPath } from '@/lib/master';
 
@@ -77,6 +77,10 @@ export default async function JettonPage({ params }: { params: { master: string 
                     Claim API:
                 </p>
                 <div className="code">{jettonClaimApiUrl(onChainMaster, reqHeaders)}</div>
+                <p className="muted" style={{ marginTop: 12 }}>
+                    Wallets batch (TEP-176):
+                </p>
+                <div className="code">{jettonWalletsBatchUrl(onChainMaster, reqHeaders)}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Merkle dump:
                 </p>
