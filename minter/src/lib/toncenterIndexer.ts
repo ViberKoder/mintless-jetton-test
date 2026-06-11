@@ -139,13 +139,22 @@ export async function getToncenterIndexerStatus(params: {
     const mintlessInfoIndexed = !!mintlessInfoSample?.amount || totalMintlessWallets > 0;
     const toncenterWorks = mintlessInfoIndexed && !cacheStale;
 
+    const onChainUriSynced = includesMaster(onChainMetadataUri, onChainMaster);
+    const bumpAlreadyTried = Boolean(onChainMetadataUri?.includes('?v='));
+
     let recommendedAction: ToncenterIndexerStatus['recommendedAction'] = 'ready';
     let bumpTargetUri: string | null = null;
 
     if (!mintlessInfoIndexed) {
-        if (cacheStale) {
+        if (cacheStale && onChainUriSynced && bumpAlreadyTried) {
+            // On-chain URI is correct (incl. bump) but Toncenter metadata cache did not refresh.
+            recommendedAction = 'request_toncenter_indexing';
+        } else if (cacheStale && !onChainUriSynced) {
             recommendedAction = 'bump_metadata_uri';
             bumpTargetUri = bumpMetadataUri(ourMetadataUri);
+        } else if (cacheStale) {
+            recommendedAction = bumpAlreadyTried ? 'request_toncenter_indexing' : 'bump_metadata_uri';
+            bumpTargetUri = bumpAlreadyTried ? null : bumpMetadataUri(onChainMetadataUri ?? ourMetadataUri);
         } else {
             recommendedAction = 'request_toncenter_indexing';
         }
@@ -153,15 +162,38 @@ export async function getToncenterIndexerStatus(params: {
         recommendedAction = 'wait';
     }
 
+    const liveDump = ourMetadataUri.replace(/\/jetton\.json.*$/, '/merkle-dump');
+    const liveApi = ourMetadataUri.replace(/\/jetton\.json.*$/, '');
     const supportMessage = [
-        'Mintless jetton indexing request',
-        `Master: ${masterRaw}`,
-        `Friendly: ${friendly}`,
-        `On-chain metadata URI: ${onChainMetadataUri ?? ourMetadataUri}`,
-        `Merkle dump: ${ourMetadataUri.replace(/\/jetton\.json.*$/, '/merkle-dump')}`,
-        `Custom payload API: ${ourMetadataUri.replace(/\/jetton\.json.*$/, '')}`,
-        `Recipients: see /wallets batch endpoint`,
-        'Please refresh metadata cache and index mintless_info for Tonscan / MyTonWallet.',
+        'Mintless jetton indexing request (Toncenter / Tonscan / MyTonWallet)',
+        '',
+        `Master (raw): ${masterRaw}`,
+        `Master (friendly): ${friendly}`,
+        '',
+        'On-chain metadata URI (current):',
+        onChainMetadataUri ?? ourMetadataUri,
+        '',
+        'Live jetton.json (correct, please re-index):',
+        ourMetadataUri,
+        `  custom_payload_api_uri: ${liveApi}`,
+        `  mintless_merkle_dump_uri: ${liveDump}`,
+        '',
+        'Toncenter metadata CACHE (stale — still old path):',
+        `  extra.uri: ${toncenterCached.metadataUri ?? 'n/a'}`,
+        `  extra.custom_payload_api_uri: ${toncenterCached.customPayloadApiUri ?? 'n/a'}`,
+        `  extra.mintless_merkle_dump_uri: ${toncenterCached.mintlessMerkleDumpUri ?? 'n/a'}`,
+        '',
+        'Verification:',
+        `  GET ${liveDump} → BOC hash 6369ec5ced9f94c8414f9bbfe374d38c7507f1983671799d91e00a4649369d3f`,
+        `  get_mintless_airdrop_hashmap_root on master → same root`,
+        `  GET ${liveApi}/wallets?next_from=0:000...&count=100 → TEP-176 batch`,
+        '',
+        'Expected result:',
+        `  GET /api/v3/jetton/wallets?owner_address=<recipient>&jetton_address=${masterRaw}`,
+        '  should return mintless_info { amount, start_from, expire_at }',
+        '',
+        'TonAPI already indexes this jetton; Toncenter mintless_info is empty.',
+        'Please refresh metadata cache and run mintless merkle dump indexing.',
     ].join('\n');
 
     return {

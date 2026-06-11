@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
     const currentUri = indexer.onChainMetadataUri;
     const targetUri = baseUri;
     const needsSync = currentUri !== targetUri;
-    const needsBump = !needsSync && indexer.cacheStale && indexer.recommendedAction === 'bump_metadata_uri';
+    const needsBump = !needsSync && indexer.recommendedAction === 'bump_metadata_uri';
 
     return NextResponse.json(
         {
