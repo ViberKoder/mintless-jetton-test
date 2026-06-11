@@ -133,12 +133,14 @@ export function CreateJettonWizard() {
             });
 
             const base = window.location.origin;
+            const deployedPath = masterToPath(Address.parse(deployData.minterAddressRaw));
             setDeployed({
                 minterAddress: deployData.minterAddress,
                 minterAddressRaw: deployData.minterAddressRaw,
                 metadataUri: deployData.metadataUri,
-                claimApiUrl: `${base}/api/jettons/${preview.minterPath}/wallet/{owner_raw}`,
+                claimApiUrl: `${base}/api/jettons/${deployedPath}/wallet/{owner_raw}`,
             });
+            setPreview({ ...preview, minterPath: deployedPath, minterAddressRaw: deployData.minterAddressRaw });
             setStep(4);
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Деплой отменён или не удался';
@@ -289,7 +291,7 @@ export function CreateJettonWizard() {
                         Все URL используют адрес jetton master, без внутренних id.
                     </p>
                     <p style={{ marginTop: 16 }}>
-                        <a href={`/jetton/${preview.minterPath}`}>Страница jetton →</a>
+                        <a href={`/jetton/${preview.minterPath}`}>Страница jetton + compliance →</a>
                     </p>
                 </div>
             )}
