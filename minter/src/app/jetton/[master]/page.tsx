@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
-import { jettonClaimApiUrl, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
+import { jettonClaimApiUrl, jettonMetadataUrl, jettonWalletsBatchUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
+import { ClaimJettonPanel } from '@/components/ClaimJettonPanel';
+import { masterToPath } from '@/lib/master';
 
 export default async function JettonPage({ params }: { params: { master: string } }) {
     const reqHeaders = await headers();
@@ -18,6 +20,7 @@ export default async function JettonPage({ params }: { params: { master: string 
 
     const metadataMaster = jetton.minterAddress;
     const onChainMaster = await resolveOnChainMinterAddress(jetton, reqHeaders);
+    const onChainPath = masterToPath(onChainMaster);
 
     return (
         <main className="container">
@@ -25,6 +28,30 @@ export default async function JettonPage({ params }: { params: { master: string 
             <h1>
                 {jetton.name} ({jetton.symbol})
             </h1>
+
+            <ClaimJettonPanel
+                masterParam={params.master}
+                jettonName={jetton.name}
+                jettonSymbol={jetton.symbol}
+                decimals={jetton.decimals}
+            />
+
+            <div className="card">
+                <h2>Почему jetton не виден в кошельке?</h2>
+                <p className="muted">
+                    Mintless jetton — это airdrop до первого claim. Пока получатель не заклеймил токен,
+                    on-chain баланс равен 0, и обычный список jetton в Tonkeeper / MyTonWallet его не
+                    показывает. Кошельки могут отображать unclaimed баланс только если проиндексировали{' '}
+                    <code>mintless_merkle_dump_uri</code> — для кастомных jetton это не обязательно и
+                    часто платная услуга.
+                </p>
+                <p className="muted">
+                    После claim через кнопку выше jetton появится как обычный токен. Альтернатива: попросить
+                    Tonkeeper проиндексировать merkle dump по master-адресу{' '}
+                    <span className="code">{onChainMaster.toRawString()}</span>.
+                </p>
+            </div>
+
             <div className="card">
                 <p>
                     Статус: <strong>{jetton.status}</strong>
@@ -45,15 +72,23 @@ export default async function JettonPage({ params }: { params: { master: string 
                 <p className="muted" style={{ marginTop: 12 }}>
                     Metadata:
                 </p>
-                <div className="code">{jettonMetadataUrl(metadataMaster, reqHeaders)}</div>
+                <div className="code">{jettonMetadataUrl(onChainMaster, reqHeaders)}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Claim API:
                 </p>
-                <div className="code">{jettonClaimApiUrl(metadataMaster, reqHeaders)}</div>
+                <div className="code">{jettonClaimApiUrl(onChainMaster, reqHeaders)}</div>
+                <p className="muted" style={{ marginTop: 12 }}>
+                    Wallets batch (TEP-176):
+                </p>
+                <div className="code">{jettonWalletsBatchUrl(onChainMaster, reqHeaders)}</div>
                 <p className="muted" style={{ marginTop: 12 }}>
                     Merkle dump:
                 </p>
-                <div className="code">{mintlessMerkleDumpUrl(metadataMaster, reqHeaders)}</div>
+                <div className="code">{mintlessMerkleDumpUrl(onChainMaster, reqHeaders)}</div>
+                <p className="muted" style={{ marginTop: 12 }}>
+                    Страница claim:
+                </p>
+                <div className="code">/jetton/{onChainPath}</div>
             </div>
         </main>
     );

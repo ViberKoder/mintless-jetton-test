@@ -89,3 +89,8 @@ export function jettonClaimApiUrl(master: Address | string, headers?: Headers): 
 export function mintlessMerkleDumpUrl(master: Address | string, headers?: Headers): string {
     return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}/merkle-dump`;
 }
+
+/** TEP-176 batch wallets root; append `?next_from=0:...&count=N` */
+export function jettonWalletsBatchUrl(master: Address | string, headers?: Headers): string {
+    return `${customPayloadApiRoot(master, headers)}/wallets?next_from={owner_raw}&count=100`;
+}

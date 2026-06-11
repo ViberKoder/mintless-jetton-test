@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Address } from '@ton/core';
 import { prisma } from '@/lib/db';
 import { findJettonByMasterParam, resolveOnChainMinterAddress } from '@/lib/jettonDb';
-import { customPayloadApiRoot, jettonClaimApiUrl, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
+import {
+    customPayloadApiRoot,
+    jettonClaimApiUrl,
+    jettonMetadataUrl,
+    jettonWalletsBatchUrl,
+    mintlessMerkleDumpUrl,
+} from '@/lib/appUrl';
 
 export async function GET(req: NextRequest, { params }: { params: { master: string } }) {
     const jetton = await findJettonByMasterParam(params.master);
@@ -27,10 +33,11 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
         minterAddress: metadataMaster,
         deployedMinterAddress: onChainMaster.toRawString(),
         network: jetton.network,
-        metadataUrl: jettonMetadataUrl(metadataMaster, req.headers),
-        customPayloadApiUri: customPayloadApiRoot(metadataMaster, req.headers),
-        claimApiUrl: jettonClaimApiUrl(metadataMaster, req.headers),
-        merkleDumpUrl: mintlessMerkleDumpUrl(metadataMaster, req.headers),
+        metadataUrl: jettonMetadataUrl(onChainMaster, req.headers),
+        customPayloadApiUri: customPayloadApiRoot(onChainMaster, req.headers),
+        claimApiUrl: jettonClaimApiUrl(onChainMaster, req.headers),
+        walletsBatchUrl: jettonWalletsBatchUrl(onChainMaster, req.headers),
+        merkleDumpUrl: mintlessMerkleDumpUrl(onChainMaster, req.headers),
         createdAt: jetton.createdAt,
     });
 }
