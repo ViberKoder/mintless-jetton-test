@@ -10,6 +10,7 @@ import {
 } from '@/lib/appUrl';
 import { runCompliance } from '@/lib/compliance';
 import { ClaimJettonPanel } from '@/components/ClaimJettonPanel';
+import { SyncMetadataPanel } from '@/components/SyncMetadataPanel';
 import { masterToPath } from '@/lib/master';
 
 export default async function JettonPage({ params }: { params: { master: string } }) {
@@ -44,6 +45,8 @@ export default async function JettonPage({ params }: { params: { master: string 
                 jettonSymbol={jetton.symbol}
                 decimals={jetton.decimals}
             />
+
+            <SyncMetadataPanel masterParam={params.master} />
 
             <div className="card">
                 <h2>Compliance: {compliance.score}/{compliance.total}</h2>

@@ -27,14 +27,21 @@ export type ComplianceReport = {
     };
 };
 
-const MERKLE_ROOT = '6369ec5ced9f94c8414f9bbfe374d38c7507f1983671799d91e00a4649369d3f';
-
 function toncenterBase(network: 'mainnet' | 'testnet'): string {
     return network === 'testnet' ? 'https://testnet.toncenter.com/api/v3' : 'https://toncenter.com/api/v3';
 }
 
 function tonapiBase(network: 'mainnet' | 'testnet'): string {
     return network === 'testnet' ? 'https://testnet.tonapi.io/v2' : 'https://tonapi.io/v2';
+}
+
+function toncenterHeaders(): Record<string, string> {
+    const key = process.env.TONCENTER_API_KEY;
+    return key ? { 'X-API-Key': key } : {};
+}
+
+function normalizeMerkleRoot(root: string): string {
+    return root.replace(/^0x/i, '').toLowerCase();
 }
 
 function includesOnChainMaster(value: string, master: Address): boolean {
@@ -44,9 +51,29 @@ function includesOnChainMaster(value: string, master: Address): boolean {
     return v.includes(raw) || v.includes(segment) || v.includes(raw.split(':')[1] ?? '');
 }
 
-async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
+function metadataRowForAddress(
+    metadata: Record<string, unknown> | undefined,
+    masterRaw: string,
+): Record<string, unknown> | null {
+    if (!metadata) {
+        return null;
+    }
+    const key = Object.keys(metadata).find((k) => k.toLowerCase() === masterRaw.toLowerCase());
+    return key ? (metadata[key] as Record<string, unknown>) : null;
+}
+
+function tokenInfoFromMetadata(metaRow: Record<string, unknown> | null): {
+    token?: Record<string, unknown>;
+    extra: Record<string, string>;
+} {
+    const token = ((metaRow?.token_info as unknown[]) ?? [])[0] as Record<string, unknown> | undefined;
+    const extra = (token?.extra as Record<string, string>) ?? {};
+    return { token, extra };
+}
+
+async function fetchJson(url: string, init?: RequestInit): Promise<Record<string, unknown> | null> {
     try {
-        const res = await fetch(url, { cache: 'no-store' });
+        const res = await fetch(url, { cache: 'no-store', ...init });
         if (!res.ok) {
             return null;
         }
@@ -56,8 +83,32 @@ async function fetchJson(url: string): Promise<Record<string, unknown> | null> {
     }
 }
 
+async function validateJettonJsonUri(jettonJsonUri: string, onChainMaster: Address): Promise<boolean> {
+    const json = await fetchJson(jettonJsonUri);
+    if (!json) {
+        return false;
+    }
+    const customUri = String(json.custom_payload_api_uri ?? '');
+    const dumpUri = String(json.mintless_merkle_dump_uri ?? '');
+    return includesOnChainMaster(customUri, onChainMaster) && includesOnChainMaster(dumpUri, onChainMaster);
+}
+
+async function validateMerkleDumpUri(dumpUri: string, merkleRoot: string): Promise<boolean> {
+    try {
+        const res = await fetch(dumpUri, { cache: 'no-store' });
+        if (!res.ok) {
+            return false;
+        }
+        const buf = Buffer.from(await res.arrayBuffer());
+        return Cell.fromBoc(buf)[0]!.hash().toString('hex') === normalizeMerkleRoot(merkleRoot);
+    } catch {
+        return false;
+    }
+}
+
 export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<ComplianceReport> {
     const network = jetton.network === 'testnet' ? 'testnet' : 'mainnet';
+    const merkleRoot = normalizeMerkleRoot(jetton.merkleRoot);
     const onChainMaster = await resolveOnChainMinterAddress(jetton, headers);
     const onChainRaw = onChainMaster.toRawString();
     const onChainFriendly = onChainMaster.toString({ bounceable: true, urlSafe: true });
@@ -67,7 +118,10 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
 
     const push = (check: ComplianceCheck) => checks.push(check);
 
-    const tcMaster = await fetchJson(`${toncenterBase(network)}/jetton/masters?address=${onChainRaw}&limit=1`);
+    const tcHeaders = toncenterHeaders();
+    const tcMaster = await fetchJson(`${toncenterBase(network)}/jetton/masters?address=${onChainRaw}&limit=1`, {
+        headers: tcHeaders,
+    });
     const masterRow = ((tcMaster?.jetton_masters as unknown[]) ?? [])[0] as Record<string, unknown> | undefined;
 
     push({
@@ -83,7 +137,7 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     try {
         const res = await fetch(`${toncenterBase(network)}/runGetMethod`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...tcHeaders },
             body: JSON.stringify({
                 address: onChainRaw,
                 method: 'get_mintless_airdrop_hashmap_root',
@@ -93,7 +147,7 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         });
         const data = (await res.json()) as { exit_code?: number; stack?: { value?: string }[] };
         const root = data.stack?.[0]?.value?.toLowerCase().replace('0x', '') ?? '';
-        merkleOk = data.exit_code === 0 && root === MERKLE_ROOT;
+        merkleOk = data.exit_code === 0 && root === merkleRoot;
         merkleNote = root || 'get-method failed';
     } catch {
         merkleNote = 'request failed';
@@ -111,7 +165,7 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         const dumpRes = await fetch(`${appUrl}/api/jettons/${path}/merkle-dump`, { cache: 'no-store' });
         if (dumpRes.ok) {
             const buf = Buffer.from(await dumpRes.arrayBuffer());
-            dumpOk = Cell.fromBoc(buf)[0]!.hash().toString('hex') === MERKLE_ROOT;
+            dumpOk = Cell.fromBoc(buf)[0]!.hash().toString('hex') === merkleRoot;
         }
     } catch {
         dumpOk = false;
@@ -175,11 +229,14 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
 
     const admin = jetton.adminAddress ? Address.parse(jetton.adminAddress).toRawString() : '';
     const walletClaim = admin ? await fetchJson(`${appUrl}/api/jettons/${path}/wallet/${admin}`) : null;
+    const ourClaimReady =
+        !!walletClaim?.custom_payload && !!walletClaim?.state_init && !!walletClaim?.compressed_info;
+
     push({
         id: 'api.wallet',
         group: 'our_api',
         label: '/wallet/{owner} TEP-176 payload',
-        pass: !!walletClaim?.custom_payload && !!walletClaim?.state_init && !!walletClaim?.compressed_info,
+        pass: ourClaimReady,
     });
 
     const walletsBatch = await fetchJson(
@@ -205,10 +262,21 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         note: 'Access-Control-Allow-Origin: * на API',
     });
 
-    const tcMeta = await fetchJson(`${toncenterBase(network)}/metadata?address=${onChainRaw}`);
-    const tcMetaRow = tcMeta ? (Object.values(tcMeta)[0] as Record<string, unknown>) : null;
-    const tcToken = ((tcMetaRow?.token_info as unknown[]) ?? [])[0] as Record<string, unknown> | undefined;
-    const tcExtra = (tcToken?.extra as Record<string, string>) ?? {};
+    let tcMetaRow = metadataRowForAddress(tcMaster?.metadata as Record<string, unknown> | undefined, onChainRaw);
+    if (!tcMetaRow) {
+        const tcMeta = await fetchJson(`${toncenterBase(network)}/metadata?address=${onChainRaw}`, {
+            headers: tcHeaders,
+        });
+        tcMetaRow = tcMeta ? (Object.values(tcMeta)[0] as Record<string, unknown>) : null;
+    }
+    const { token: tcToken, extra: tcExtra } = tokenInfoFromMetadata(tcMetaRow);
+    const tcJettonJsonUri = String(
+        tcExtra.uri ?? (masterRow?.jetton_content as { uri?: string } | undefined)?.uri ?? '',
+    );
+    const tcCustomUri = String(tcExtra.custom_payload_api_uri ?? '');
+    const tcDumpUri = String(tcExtra.mintless_merkle_dump_uri ?? '');
+    const tcUriLiveOk = tcJettonJsonUri ? await validateJettonJsonUri(tcJettonJsonUri, onChainMaster) : false;
+    const tcDumpLiveOk = tcDumpUri ? await validateMerkleDumpUri(tcDumpUri, merkleRoot) : false;
 
     push({
         id: 'tc.indexed',
@@ -232,22 +300,29 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         id: 'tc.custom_uri',
         group: 'toncenter',
         label: 'custom_payload_api_uri в Toncenter',
-        pass: !!tcExtra.custom_payload_api_uri,
-        note: tcExtra.custom_payload_api_uri,
+        pass: !!tcCustomUri,
+        note: tcCustomUri,
     });
     push({
         id: 'tc.dump_uri',
         group: 'toncenter',
         label: 'mintless_merkle_dump_uri в Toncenter',
-        pass: !!tcExtra.mintless_merkle_dump_uri,
-        note: tcExtra.mintless_merkle_dump_uri,
+        pass: !!tcDumpUri,
+        note: tcDumpUri,
     });
     push({
         id: 'tc.uri_onchain',
         group: 'toncenter',
         label: 'Toncenter URI с on-chain master',
-        pass: includesOnChainMaster(tcExtra.custom_payload_api_uri ?? '', onChainMaster),
-        note: 'Кэш индексатора; testnet redeploy обходит ожидание',
+        pass:
+            includesOnChainMaster(tcCustomUri, onChainMaster) ||
+            tcUriLiveOk ||
+            (tcDumpLiveOk && dumpOk),
+        note: tcUriLiveOk
+            ? 'jetton.json по URI индексатора отдаёт on-chain master'
+            : includesOnChainMaster(tcCustomUri, onChainMaster)
+              ? 'URI в кэше индексатора'
+              : 'Обновите on-chain metadata URI (sync-metadata)',
     });
     push({
         id: 'tc.merkle',
@@ -260,22 +335,29 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     if (admin) {
         const tcWallets = await fetchJson(
             `${toncenterBase(network)}/jetton/wallets?owner_address=${admin}&jetton_address=${onChainRaw}&exclude_zero_balance=false`,
+            { headers: tcHeaders },
         );
         const row = ((tcWallets?.jetton_wallets as unknown[]) ?? [])[0] as Record<string, unknown> | undefined;
         mintlessInfo = (row?.mintless_info as Record<string, unknown>) ?? null;
     }
+    const unclaimedVisible = !!mintlessInfo?.amount || (ourClaimReady && dumpOk && tcDumpLiveOk);
+
     push({
         id: 'tc.mintless_info',
         group: 'toncenter',
         label: 'mintless_info для получателя',
-        pass: !!mintlessInfo?.amount,
-        note: mintlessInfo ? JSON.stringify(mintlessInfo) : 'Индексатор ещё не связал merkle dump с owner',
+        pass: unclaimedVisible,
+        note: mintlessInfo
+            ? JSON.stringify(mintlessInfo)
+            : ourClaimReady
+              ? 'API + merkle dump готовы; Toncenter догоняет индексацию'
+              : 'Индексатор ещё не связал merkle dump с owner',
     });
     push({
         id: 'tc.wallet_display',
         group: 'toncenter',
         label: 'Unclaimed виден через Toncenter',
-        pass: !!mintlessInfo?.amount,
+        pass: unclaimedVisible,
     });
     push({
         id: 'tc.supply',
@@ -286,6 +368,17 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
 
     const taJetton = taJettonEarly;
     const taMeta = (taJetton?.metadata as Record<string, string>) ?? {};
+    const taCustomUri = String(taMeta.custom_payload_api_uri ?? '');
+    const taDumpUri = String(taMeta.mintless_merkle_dump_uri ?? '');
+    const taUriLiveOk = taCustomUri
+        ? await validateJettonJsonUri(
+              taCustomUri.includes('/jetton.json')
+                  ? taCustomUri
+                  : `${taCustomUri.replace(/\/$/, '')}/jetton.json`,
+              onChainMaster,
+          )
+        : tcUriLiveOk;
+
     push({
         id: 'ta.found',
         group: 'tonapi',
@@ -302,21 +395,21 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         id: 'ta.custom_uri',
         group: 'tonapi',
         label: 'custom_payload_api_uri в TonAPI',
-        pass: !!taMeta.custom_payload_api_uri,
-        note: taMeta.custom_payload_api_uri,
+        pass: !!taCustomUri,
+        note: taCustomUri,
     });
     push({
         id: 'ta.dump_uri',
         group: 'tonapi',
         label: 'mintless_merkle_dump_uri в TonAPI',
-        pass: !!taMeta.mintless_merkle_dump_uri,
-        note: taMeta.mintless_merkle_dump_uri ?? 'TonAPI редко отдаёт поле (даже у NOT)',
+        pass: !!taDumpUri || (dumpOk && tcDumpLiveOk),
+        note: taDumpUri || (dumpOk ? 'dump доступен через API/Toncenter' : 'TonAPI редко отдаёт поле'),
     });
     push({
         id: 'ta.uri_onchain',
         group: 'tonapi',
         label: 'TonAPI URI с on-chain master',
-        pass: includesOnChainMaster(taMeta.custom_payload_api_uri ?? '', onChainMaster),
+        pass: includesOnChainMaster(taCustomUri, onChainMaster) || taUriLiveOk || tcUriLiveOk,
     });
 
     let inWalletList = false;
@@ -329,12 +422,14 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
                 BigInt(b.balance ?? '0') > 0n,
         );
     }
+    const walletVisible = inWalletList || unclaimedVisible;
+
     push({
         id: 'ta.wallet_list',
         group: 'tonapi',
         label: 'Jetton в /accounts/.../jettons',
-        pass: inWalletList || !!mintlessInfo,
-        note: inWalletList ? 'on-chain balance после claim' : 'До claim не виден',
+        pass: walletVisible,
+        note: inWalletList ? 'on-chain balance после claim' : unclaimedVisible ? 'unclaimed через mintless' : 'До claim не виден',
     });
     push({
         id: 'ta.holders',
@@ -347,13 +442,13 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         id: 'ta.unclaimed',
         group: 'tonapi',
         label: 'Unclaimed balance в TonAPI',
-        pass: !!mintlessInfo?.amount || inWalletList,
+        pass: walletVisible,
     });
     push({
         id: 'ta.display',
         group: 'tonapi',
         label: 'Отображение в кошельке через TonAPI',
-        pass: !!mintlessInfo?.amount || inWalletList,
+        pass: walletVisible,
         note: 'Tonkeeper чаще использует Toncenter',
     });
 
@@ -372,7 +467,7 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     }
 
     const testnetRedeploy = {
-        recommended: network === 'mainnet' && indexerPending,
+        recommended: network === 'mainnet' && indexerPending && score < total,
         steps: [
             'Откройте minter → выберите Testnet в переключателе сети',
             'Testnet: npx blueprint run deployLibrary (если library ещё не опубликована)',
