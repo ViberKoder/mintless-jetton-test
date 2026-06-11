@@ -5,6 +5,7 @@ import {
     jettonContentToCell,
     loadMinterCode,
     loadWalletCodeRaw,
+    Op,
 } from './jetton';
 import { masterToPath } from './master';
 
@@ -85,10 +86,13 @@ export function buildMinterDeploy(params: {
     storeStateInit(minter.init)(stateInitB);
     const stateInit = stateInitB.endCell();
 
+    const deployPayload = beginCell().storeUint(Op.top_up, 32).storeUint(0, 64).endCell();
+
     return {
         minterAddress: minter.address.toString({ bounceable: true, urlSafe: true }),
         minterAddressRaw: minter.address.toRawString(),
         deployAmount: toNano('1.5').toString(),
         stateInitBoc: stateInit.toBoc().toString('base64'),
+        deployPayloadBoc: deployPayload.toBoc().toString('base64'),
     };
 }

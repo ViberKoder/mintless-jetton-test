@@ -12,7 +12,11 @@ import {
 import minterCompiled from '@/contracts/JettonMinter.compiled.json';
 import walletCompiled from '@/contracts/JettonWallet.compiled.json';
 
-export const Op = { airdrop_claim: 0x0df602d6, transfer: 0xf8a7ea5 };
+export const Op = {
+    airdrop_claim: 0x0df602d6,
+    transfer: 0xf8a7ea5,
+    top_up: 0xd372158c,
+};
 
 export type JettonMinterContent = { uri: string };
 

@@ -109,13 +109,14 @@ export function CreateJettonWizard() {
             const deployData = await deployRes.json();
             if (!deployRes.ok) throw new Error(deployData.error || 'Ошибка подготовки деплоя');
 
-            const result = await tonConnectUI.sendTransaction({
+            await tonConnectUI.sendTransaction({
                 validUntil: Math.floor(Date.now() / 1000) + 600,
                 messages: [
                     {
                         address: deployData.minterAddress,
                         amount: deployData.deployAmount,
                         stateInit: deployData.stateInitBoc,
+                        payload: deployData.deployPayloadBoc,
                     },
                 ],
             });
