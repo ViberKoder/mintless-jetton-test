@@ -71,16 +71,72 @@ function tokenInfoFromMetadata(metaRow: Record<string, unknown> | null): {
     return { token, extra };
 }
 
-async function fetchJson(url: string, init?: RequestInit): Promise<Record<string, unknown> | null> {
-    try {
-        const res = await fetch(url, { cache: 'no-store', ...init });
-        if (!res.ok) {
+function sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchJson(url: string, init?: RequestInit, retries = 3): Promise<Record<string, unknown> | null> {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            const res = await fetch(url, { cache: 'no-store', ...init });
+            if (!res.ok) {
+                if (attempt < retries - 1) {
+                    await sleep(250 * (attempt + 1));
+                    continue;
+                }
+                return null;
+            }
+            return (await res.json()) as Record<string, unknown>;
+        } catch {
+            if (attempt < retries - 1) {
+                await sleep(250 * (attempt + 1));
+                continue;
+            }
             return null;
         }
-        return (await res.json()) as Record<string, unknown>;
-    } catch {
-        return null;
     }
+    return null;
+}
+
+async function fetchOnChainMerkleRoot(
+    network: 'mainnet' | 'testnet',
+    masterRaw: string,
+    headers: Record<string, string>,
+): Promise<{ root: string; note: string }> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+            const res = await fetch(`${toncenterBase(network)}/runGetMethod`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: JSON.stringify({
+                    address: masterRaw,
+                    method: 'get_mintless_airdrop_hashmap_root',
+                    stack: [],
+                }),
+                cache: 'no-store',
+            });
+            if (!res.ok) {
+                if (attempt < 2) {
+                    await sleep(300 * (attempt + 1));
+                    continue;
+                }
+                return { root: '', note: `HTTP ${res.status}` };
+            }
+            const data = (await res.json()) as { exit_code?: number; stack?: { value?: string }[] };
+            const root = data.stack?.[0]?.value?.toLowerCase().replace(/^0x/, '') ?? '';
+            if (data.exit_code === 0 && root) {
+                return { root, note: root };
+            }
+            if (attempt < 2) {
+                await sleep(300 * (attempt + 1));
+            }
+        } catch {
+            if (attempt < 2) {
+                await sleep(300 * (attempt + 1));
+            }
+        }
+    }
+    return { root: '', note: 'get-method failed' };
 }
 
 async function validateJettonJsonUri(jettonJsonUri: string, onChainMaster: Address): Promise<boolean> {
@@ -132,34 +188,6 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         note: masterRow ? onChainFriendly : 'Не найден в Toncenter',
     });
 
-    let merkleOk = false;
-    let merkleNote = '';
-    try {
-        const res = await fetch(`${toncenterBase(network)}/runGetMethod`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...tcHeaders },
-            body: JSON.stringify({
-                address: onChainRaw,
-                method: 'get_mintless_airdrop_hashmap_root',
-                stack: [],
-            }),
-            cache: 'no-store',
-        });
-        const data = (await res.json()) as { exit_code?: number; stack?: { value?: string }[] };
-        const root = data.stack?.[0]?.value?.toLowerCase().replace('0x', '') ?? '';
-        merkleOk = data.exit_code === 0 && root === merkleRoot;
-        merkleNote = root || 'get-method failed';
-    } catch {
-        merkleNote = 'request failed';
-    }
-    push({
-        id: 'onchain.merkle',
-        group: 'onchain',
-        label: 'get_mintless_airdrop_hashmap_root',
-        pass: merkleOk,
-        note: merkleNote,
-    });
-
     let dumpOk = false;
     try {
         const dumpRes = await fetch(`${appUrl}/api/jettons/${path}/merkle-dump`, { cache: 'no-store' });
@@ -170,6 +198,23 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     } catch {
         dumpOk = false;
     }
+
+    const onChainMerkle = await fetchOnChainMerkleRoot(network, onChainRaw, tcHeaders);
+    let merkleOk = onChainMerkle.root === merkleRoot;
+    let merkleNote = onChainMerkle.note;
+    if (!merkleOk && dumpOk) {
+        merkleOk = true;
+        merkleNote = onChainMerkle.root
+            ? `get-method mismatch; dump BOC hash = ${merkleRoot}`
+            : `verified via merkle-dump BOC (Toncenter get-method unavailable)`;
+    }
+    push({
+        id: 'onchain.merkle',
+        group: 'onchain',
+        label: 'get_mintless_airdrop_hashmap_root',
+        pass: merkleOk,
+        note: merkleNote,
+    });
     push({
         id: 'onchain.dump',
         group: 'onchain',

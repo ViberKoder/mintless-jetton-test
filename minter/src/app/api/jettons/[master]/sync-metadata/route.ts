@@ -21,12 +21,23 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
     const tcHeaders: Record<string, string> = process.env.TONCENTER_API_KEY
         ? { 'X-API-Key': process.env.TONCENTER_API_KEY }
         : {};
-    const tcRes = await fetch(
-        `${toncenterBase(network)}/jetton/masters?address=${onChainMaster.toRawString()}&limit=1`,
-        { cache: 'no-store', headers: tcHeaders },
-    );
-    const tcData = tcRes.ok ? ((await tcRes.json()) as { jetton_masters?: { jetton_content?: { uri?: string } }[] }) : null;
-    const currentUri = tcData?.jetton_masters?.[0]?.jetton_content?.uri ?? null;
+    let currentUri: string | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const tcRes = await fetch(
+            `${toncenterBase(network)}/jetton/masters?address=${onChainMaster.toRawString()}&limit=1`,
+            { cache: 'no-store', headers: tcHeaders },
+        );
+        if (tcRes.ok) {
+            const tcData = (await tcRes.json()) as { jetton_masters?: { jetton_content?: { uri?: string } }[] };
+            currentUri = tcData.jetton_masters?.[0]?.jetton_content?.uri ?? null;
+            if (currentUri) {
+                break;
+            }
+        }
+        if (attempt < 2) {
+            await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+        }
+    }
 
     const body = beginCell().storeUint(OP_CHANGE_METADATA_URI, 32).storeUint(0, 64).storeStringTail(targetUri).endCell();
 
