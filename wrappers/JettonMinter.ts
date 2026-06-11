@@ -59,9 +59,9 @@ export function jettonMinterConfigFullToCell(config: JettonMinterConfigFull): Ce
         .storeCoins(config.supply)
         .storeAddress(config.admin)
         .storeAddress(config.transfer_admin)
-        .storeUint(config.merkle_root, 256)
         .storeRef(config.wallet_code)
         .storeRef(content)
+        .storeUint(config.merkle_root, 256)
         .endCell()
 }
 
@@ -71,9 +71,9 @@ export function jettonMinterConfigToCell(config: JettonMinterConfig): Cell {
         .storeCoins(0)
         .storeAddress(config.admin)
         .storeAddress(null) // Transfer admin address
-        .storeUint(config.merkle_root, 256)
         .storeRef(config.wallet_code)
         .storeRef(content)
+        .storeUint(config.merkle_root, 256)
         .endCell();
 }
 
