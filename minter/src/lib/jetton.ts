@@ -38,9 +38,9 @@ export function jettonMinterConfigToCell(config: JettonMinterConfig): Cell {
         .storeCoins(0)
         .storeAddress(config.admin)
         .storeAddress(null)
-        .storeUint(config.merkle_root, 256)
         .storeRef(config.wallet_code)
         .storeRef(content)
+        .storeUint(config.merkle_root, 256)
         .endCell();
 }
 
