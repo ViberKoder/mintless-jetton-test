@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
                 adminAddress: admin.toString(),
                 minterAddress: masterRaw,
                 deployedMinterAddress: deployPreview.minterAddressRaw,
-                network: body.network,
+                network: body.network ?? 'testnet',
                 status: 'draft',
             },
         });
@@ -78,15 +78,22 @@ export async function POST(req: NextRequest) {
     }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+    const network = req.nextUrl.searchParams.get('network');
     const jettons = await prisma.jetton.findMany({
+        where:
+            network === 'mainnet' || network === 'testnet'
+                ? { network }
+                : undefined,
         orderBy: { createdAt: 'desc' },
         take: 50,
         select: {
             name: true,
             symbol: true,
             status: true,
+            network: true,
             minterAddress: true,
+            deployedMinterAddress: true,
             recipientCount: true,
             createdAt: true,
         },

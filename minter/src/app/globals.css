@@ -172,3 +172,31 @@ textarea {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+.network-selector {
+  display: inline-flex;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.network-option {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.network-option.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(59, 158, 255, 0.08);
+}
+
+.network-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

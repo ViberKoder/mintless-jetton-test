@@ -1,10 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTonConnectUI, useTonWallet } from '@tonconnect/ui-react';
 import { TonConnectButton } from './TonConnectButton';
+import { NetworkSelector } from './NetworkSelector';
 import { masterToPath } from '@/lib/master';
 import { Address } from '@ton/core';
+import {
+    chainIdForNetwork,
+    defaultTonNetwork,
+    networkFromChainId,
+    networkLabel,
+    readStoredNetwork,
+    storeNetwork,
+    type TonNetwork,
+} from '@/lib/network';
 
 const AIRDROP_EXAMPLE = `[
   {
@@ -31,6 +41,10 @@ type DeployInfo = {
     claimApiUrl: string;
 };
 
+function walletMatchesNetwork(walletChain: string | undefined, network: TonNetwork): boolean {
+    return walletChain === chainIdForNetwork(network);
+}
+
 export function CreateJettonWizard() {
     const [tonConnectUI] = useTonConnectUI();
     const wallet = useTonWallet();
@@ -38,6 +52,7 @@ export function CreateJettonWizard() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [network, setNetwork] = useState<TonNetwork>(defaultTonNetwork);
 
     const [name, setName] = useState('');
     const [symbol, setSymbol] = useState('');
@@ -49,11 +64,47 @@ export function CreateJettonWizard() {
     const [preview, setPreview] = useState<Preview | null>(null);
     const [deployed, setDeployed] = useState<DeployInfo | null>(null);
 
-    const network = process.env.NEXT_PUBLIC_TON_NETWORK === 'mainnet' ? 'mainnet' : 'testnet';
+    useEffect(() => {
+        const saved = readStoredNetwork();
+        if (saved) {
+            setNetwork(saved);
+        }
+    }, []);
 
-    async function handleCreateDraft() {
+    useEffect(() => {
+        storeNetwork(network);
+        tonConnectUI.setConnectionNetwork(chainIdForNetwork(network));
+    }, [network, tonConnectUI]);
+
+    function handleNetworkChange(next: TonNetwork) {
+        setError(null);
+        if (wallet && !walletMatchesNetwork(wallet.account.chain, next)) {
+            setError(
+                `Смените сеть в кошельке или отключите его и подключите снова в ${networkLabel(next)}.`,
+            );
+        }
+        setNetwork(next);
+    }
+
+    function ensureWalletNetwork(): boolean {
         if (!wallet?.account?.address) {
             setError('Подключите кошелёк TON Connect');
+            return false;
+        }
+        if (!walletMatchesNetwork(wallet.account.chain, network)) {
+            const connected = networkFromChainId(wallet.account.chain);
+            setError(
+                connected
+                    ? `Кошелёк в ${networkLabel(connected)}, а выбрана сеть ${networkLabel(network)}. Переключите сеть или переподключите кошелёк.`
+                    : `Кошелёк подключён к неизвестной сети (${wallet.account.chain}). Нужна ${networkLabel(network)}.`,
+            );
+            return false;
+        }
+        return true;
+    }
+
+    async function handleCreateDraft() {
+        if (!ensureWalletNetwork()) {
             return;
         }
         setError(null);
@@ -69,7 +120,7 @@ export function CreateJettonWizard() {
                     description,
                     image,
                     airdropJson,
-                    adminAddress: wallet.account.address,
+                    adminAddress: wallet!.account.address,
                     network,
                 }),
             });
@@ -94,8 +145,7 @@ export function CreateJettonWizard() {
     }
 
     async function handleDeploy() {
-        if (!preview || !wallet?.account?.address) {
-            setError('Подключите кошелёк TON Connect');
+        if (!preview || !ensureWalletNetwork()) {
             return;
         }
         setError(null);
@@ -104,13 +154,14 @@ export function CreateJettonWizard() {
             const deployRes = await fetch(`/api/jettons/${preview.minterPath}/deploy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ adminAddress: wallet.account.address }),
+                body: JSON.stringify({ adminAddress: wallet!.account.address }),
             });
             const deployData = await deployRes.json();
             if (!deployRes.ok) throw new Error(deployData.error || 'Ошибка подготовки деплоя');
 
             await tonConnectUI.sendTransaction({
                 validUntil: Math.floor(Date.now() / 1000) + 600,
+                network: chainIdForNetwork(network),
                 messages: [
                     {
                         address: deployData.minterAddress,
@@ -121,12 +172,13 @@ export function CreateJettonWizard() {
                 ],
             });
 
-            await fetch(`/api/jettons/${preview.minterPath}`, {
+            const patchPath = masterToPath(Address.parse(deployData.minterAddressRaw));
+            await fetch(`/api/jettons/${patchPath}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     status: 'deployed',
-                    adminAddress: wallet.account.address,
+                    adminAddress: wallet!.account.address,
                     deployedMinterAddress: deployData.minterAddressRaw,
                     network,
                 }),
@@ -159,6 +211,9 @@ export function CreateJettonWizard() {
         { n: 4, label: 'Готово' },
     ];
 
+    const walletNetwork = networkFromChainId(wallet?.account.chain);
+    const walletOk = wallet ? walletMatchesNetwork(wallet.account.chain, network) : false;
+
     return (
         <div>
             <div className="steps">
@@ -174,18 +229,35 @@ export function CreateJettonWizard() {
 
             {step === 1 && (
                 <div className="card">
-                    <h2>1. Подключите кошелёк</h2>
+                    <h2>1. Сеть и кошелёк</h2>
                     <p className="muted">
-                        Этот адрес станет admin jetton-minter. Через него же вы подтвердите деплой (~1.5 TON).
+                        Выберите сеть деплоя. Testnet удобен для проверки mintless и индексации без ожидания
+                        кэша mainnet.
+                    </p>
+                    <NetworkSelector value={network} onChange={handleNetworkChange} disabled={loading} />
+                    {network === 'testnet' && (
+                        <p className="muted">
+                            На testnet нужен testnet-кошелёк с TON. Если claim падает с library error — один раз
+                            выполните <code>deployLibrary</code> из корня репозитория на testnet.
+                        </p>
+                    )}
+                    <p className="muted">
+                        Этот адрес станет admin jetton-minter. Деплой minter стоит ~1.5 TON в выбранной сети.
                     </p>
                     <TonConnectButton />
                     {wallet && (
                         <p className="muted" style={{ marginTop: 12 }}>
                             Подключён: <span className="code">{wallet.account.address}</span>
+                            <br />
+                            Сеть кошелька:{' '}
+                            <strong style={{ color: walletOk ? 'var(--success)' : 'var(--error)' }}>
+                                {walletNetwork ? networkLabel(walletNetwork) : wallet.account.chain}
+                            </strong>
                         </p>
                     )}
+                    {error && <p className="error">{error}</p>}
                     <div style={{ marginTop: 16 }}>
-                        <button className="btn" disabled={!wallet} onClick={() => setStep(2)}>
+                        <button className="btn" disabled={!wallet || !walletOk} onClick={() => setStep(2)}>
                             Далее
                         </button>
                     </div>
@@ -194,10 +266,10 @@ export function CreateJettonWizard() {
 
             {step === 2 && (
                 <div className="card">
-                    <h2>2. Метаданные и airdrop</h2>
+                    <h2>2. Метаданные и airdrop ({networkLabel(network)})</h2>
                     <p className="muted">
-                        JSON airdrop: owner в raw-формате <code>0:...</code>, amount в nanojettons,
-                        start_from / expire_at — unix time.
+                        JSON airdrop: owner в raw-формате <code>0:...</code> для <strong>той же сети</strong>,
+                        amount в nanojettons, start_from / expire_at — unix time.
                     </p>
 
                     <div className="field">
@@ -248,8 +320,8 @@ export function CreateJettonWizard() {
 
             {step === 3 && preview && (
                 <div className="card">
-                    <h2>3. Деплой jetton</h2>
-                    <p className="muted">Сеть: <strong>{network}</strong>. Адрес minter уже вычислен (до деплоя).</p>
+                    <h2>3. Деплой jetton ({networkLabel(network)})</h2>
+                    <p className="muted">Адрес minter уже вычислен (до деплоя).</p>
                     <p className="muted">Jetton master (raw):</p>
                     <div className="code">{preview.minterAddressRaw}</div>
                     <p>
@@ -268,7 +340,7 @@ export function CreateJettonWizard() {
                             Назад
                         </button>
                         <button className="btn" disabled={loading || !wallet} onClick={handleDeploy}>
-                            {loading ? 'Подтвердите в кошельке…' : 'Создать jetton (TON Connect)'}
+                            {loading ? 'Подтвердите в кошельке…' : `Деплой в ${networkLabel(network)}`}
                         </button>
                     </div>
                 </div>
@@ -276,7 +348,7 @@ export function CreateJettonWizard() {
 
             {step === 4 && deployed && preview && (
                 <div className="card success-box">
-                    <h2>Jetton создан</h2>
+                    <h2>Jetton создан в {networkLabel(network)}</h2>
                     <p className="muted">Minter (jetton master):</p>
                     <div className="code">{deployed.minterAddress}</div>
                     <p className="muted" style={{ marginTop: 12 }}>
