@@ -139,7 +139,6 @@ export function CreateJettonWizard() {
                 claimApiUrl: `${base}/api/jettons/${preview.minterPath}/wallet/{owner_raw}`,
             });
             setStep(4);
-            void result;
         } catch (e) {
             const msg = e instanceof Error ? e.message : 'Деплой отменён или не удался';
             if (!msg.toLowerCase().includes('reject') && !msg.toLowerCase().includes('cancel')) {
