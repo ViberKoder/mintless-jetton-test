@@ -28,9 +28,9 @@ export async function GET(req: NextRequest, { params }: { params: { master: stri
         deployedMinterAddress: onChainMaster.toRawString(),
         network: jetton.network,
         metadataUrl: jettonMetadataUrl(metadataMaster, req.headers),
-        customPayloadApiUri: customPayloadApiRoot(metadataMaster, req.headers),
-        claimApiUrl: jettonClaimApiUrl(metadataMaster, req.headers),
-        merkleDumpUrl: mintlessMerkleDumpUrl(metadataMaster, req.headers),
+        customPayloadApiUri: customPayloadApiRoot(onChainMaster, req.headers),
+        claimApiUrl: jettonClaimApiUrl(onChainMaster, req.headers),
+        merkleDumpUrl: mintlessMerkleDumpUrl(onChainMaster, req.headers),
         createdAt: jetton.createdAt,
     });
 }
