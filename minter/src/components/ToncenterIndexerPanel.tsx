@@ -10,6 +10,7 @@ type IndexerStatus = {
     toncenterWorks: boolean;
     cacheStale: boolean;
     mintlessInfoIndexed: boolean;
+    onChainMetadataUri: string | null;
     recommendedAction: 'wait' | 'bump_metadata_uri' | 'request_toncenter_indexing' | 'ready';
     toncenterCached: {
         customPayloadApiUri: string | null;
@@ -61,7 +62,7 @@ export function ToncenterIndexerPanel({ masterParam }: Props) {
         load().catch((e) => setError(e instanceof Error ? e.message : 'Ошибка загрузки'));
     }, [load]);
 
-    const sendTx = async (message: { address: string; amount: string; payload: string }, action: string) => {
+    const sendTx = async (message: { address: string; amount: string; payload: string }) => {
         if (!wallet?.account?.address) {
             return;
         }
@@ -73,11 +74,7 @@ export function ToncenterIndexerPanel({ masterParam }: Props) {
                 validUntil: Math.floor(Date.now() / 1000) + 600,
                 messages: [message],
             });
-            setSuccess(
-                action === 'bump'
-                    ? 'URI обновлён с ?v=… — Toncenter должен перекачать metadata в течение ~30 мин.'
-                    : 'Транзакция отправлена.',
-            );
+            setSuccess('Транзакция отправлена. Если Toncenter не обновит кэш — нужен запрос в @toncenter.');
             await load();
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Ошибка отправки');
@@ -101,7 +98,15 @@ export function ToncenterIndexerPanel({ masterParam }: Props) {
             setError(data.error || 'Не удалось подготовить bump');
             return;
         }
-        await sendTx(data.message, 'bump');
+        await sendTx(data.message);
+    };
+
+    const copySupport = async () => {
+        if (!status?.supportMessage) {
+            return;
+        }
+        await navigator.clipboard.writeText(status.supportMessage);
+        setSuccess('Текст запроса скопирован — отправьте в @toncenter');
     };
 
     if (!status) {
@@ -117,68 +122,80 @@ export function ToncenterIndexerPanel({ masterParam }: Props) {
         );
     }
 
+    const bumpAlreadyTried = Boolean(status.onChainMetadataUri?.includes('?v='));
+
     return (
         <div className="card">
             <h2>Toncenter / Tonscan / MyTonWallet</h2>
             <p className="muted">
-                Tonkeeper и Tonviewer используют <strong>TonAPI</strong> — у вас уже работает.
-                Tonscan и MyTonWallet берут данные из <strong>Toncenter</strong> — им нужен{' '}
-                <code>mintless_info</code> в <code>/jetton/wallets</code>.
+                Tonkeeper и Tonviewer (TonAPI) — работают. Tonscan и MyTonWallet читают{' '}
+                <strong>Toncenter</strong> и ждут <code>mintless_info</code> в{' '}
+                <code>/api/v3/jetton/wallets</code>. Сейчас ответ пустой — это не баг нашего API.
             </p>
             <ul style={{ margin: '8px 0', paddingLeft: 18, fontSize: '0.9rem' }}>
                 <li style={{ color: status.tonapiWorks ? 'var(--success)' : 'var(--muted)' }}>
-                    TonAPI: {status.tonapiWorks ? '✓' : '○'} custom_payload_api_uri
+                    TonAPI: {status.tonapiWorks ? '✓' : '○'}
                 </li>
                 <li style={{ color: status.cacheStale ? 'var(--danger)' : 'var(--success)' }}>
-                    Toncenter metadata cache: {status.cacheStale ? 'устарел (старый путь)' : '✓ актуален'}
+                    Toncenter metadata cache: {status.cacheStale ? 'устарел' : 'актуален'}
                 </li>
                 <li style={{ color: status.mintlessInfoIndexed ? 'var(--success)' : 'var(--danger)' }}>
-                    Toncenter mintless_info: {status.mintlessInfoIndexed ? '✓ есть' : '✗ нет'}
+                    Toncenter mintless_info: {status.mintlessInfoIndexed ? '✓' : '✗ пусто'}
                 </li>
             </ul>
 
             {status.cacheStale && (
                 <div className="muted" style={{ fontSize: '0.85rem' }}>
-                    <p>Кэш Toncenter всё ещё ссылается на старый путь:</p>
+                    <p>Кэш Toncenter не обновился после sync/bump. В кэше всё ещё старый путь:</p>
                     <div className="code">{status.toncenterCached.mintlessMerkleDumpUri ?? 'n/a'}</div>
+                    {bumpAlreadyTried && (
+                        <p style={{ marginTop: 8 }}>
+                            On-chain URI уже с <code>?v=</code>, но metadata-fetcher Toncenter не перекачал jetton.json.
+                            Дальше только ручной запрос в Toncenter.
+                        </p>
+                    )}
                 </div>
             )}
 
-            {syncInfo?.needsBump && syncInfo.bumpMessage && (
+            {syncInfo?.needsBump && syncInfo.bumpMessage && !bumpAlreadyTried && (
                 <div style={{ marginTop: 16 }}>
-                    <p className="muted">
-                        Шаг 1: принудительно обновить on-chain URI (<code>?v=2</code>), чтобы metadata-fetcher
-                        Toncenter перекачал jetton.json с правильными ссылками.
-                    </p>
+                    <p className="muted">Опционально: bump on-chain URI (если ещё не делали).</p>
                     <div className="code">{syncInfo.bumpTargetUri}</div>
                     <div style={{ marginTop: 12, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                         <TonConnectButton />
                         <button type="button" className="primary" disabled={!wallet || loading} onClick={() => void handleBump()}>
-                            {loading ? 'Отправка…' : 'Bump metadata URI для Toncenter'}
+                            {loading ? 'Отправка…' : 'Bump metadata URI'}
                         </button>
                     </div>
                 </div>
             )}
 
-            {status.recommendedAction === 'request_toncenter_indexing' && (
-                <div style={{ marginTop: 16 }}>
-                    <p className="muted">
-                        Шаг 2: если через 30–60 мин после bump jetton всё ещё не виден — напишите в{' '}
-                        <a href="https://t.me/toncenter" target="_blank" rel="noreferrer">
-                            @toncenter
-                        </a>{' '}
-                        с запросом на индексацию mintless merkle dump:
-                    </p>
-                    <textarea
-                        className="code"
-                        readOnly
-                        rows={8}
-                        style={{ width: '100%', marginTop: 8, fontFamily: 'monospace', fontSize: '0.8rem' }}
-                        value={status.supportMessage}
-                        onFocus={(e) => e.target.select()}
-                    />
-                </div>
-            )}
+            <div style={{ marginTop: 16 }}>
+                <p className="muted">
+                    <strong>Что делать:</strong> скопируйте текст и отправьте в{' '}
+                    <a href="https://t.me/toncenter" target="_blank" rel="noreferrer">
+                        @toncenter
+                    </a>{' '}
+                    (и при необходимости в поддержку MyTonWallet). Попросите обновить metadata cache и
+                    проиндексировать mintless merkle dump.
+                </p>
+                <textarea
+                    className="code"
+                    readOnly
+                    rows={12}
+                    style={{ width: '100%', marginTop: 8, fontFamily: 'monospace', fontSize: '0.75rem' }}
+                    value={status.supportMessage}
+                    onFocus={(e) => e.target.select()}
+                />
+                <button type="button" className="primary" style={{ marginTop: 8 }} onClick={() => void copySupport()}>
+                    Скопировать запрос для @toncenter
+                </button>
+            </div>
+
+            <p className="muted" style={{ marginTop: 16 }}>
+                <strong>Быстрый обходной путь:</strong> сделайте claim через кнопку выше — jetton появится в Tonscan /
+                MyTonWallet как обычный токен с on-chain балансом (без mintless_info).
+            </p>
 
             {error && <p style={{ color: 'var(--danger)', marginTop: 12 }}>{error}</p>}
             {success && <p style={{ color: 'var(--success)', marginTop: 12 }}>{success}</p>}
