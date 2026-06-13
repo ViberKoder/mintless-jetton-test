@@ -1,5 +1,4 @@
 import { Address, beginCell } from '@ton/core';
-import { customPayloadApiRoot, jettonMetadataUrl, mintlessMerkleDumpUrl } from '@/lib/appUrl';
 
 export type ToncenterIndexerStatus = {
     network: 'mainnet' | 'testnet';
@@ -39,9 +38,8 @@ function includesMaster(value: string | null | undefined, master: Address): bool
     const raw = master.toRawString().toLowerCase();
     const hex = raw.split(':')[1] ?? '';
     const encoded = encodeURIComponent(raw).toLowerCase();
-    const friendly = master.toString({ bounceable: true, urlSafe: true }).toLowerCase();
     const v = value.toLowerCase();
-    return v.includes(raw) || v.includes(encoded) || v.includes(hex) || v.includes(friendly);
+    return v.includes(raw) || v.includes(encoded) || v.includes(hex);
 }
 
 function metadataRowForAddress(
@@ -160,9 +158,8 @@ export async function getToncenterIndexerStatus(params: {
         `Master: ${masterRaw}`,
         `Friendly: ${friendly}`,
         `On-chain metadata URI: ${onChainMetadataUri ?? ourMetadataUri}`,
-        `Merkle dump: ${mintlessMerkleDumpUrl(onChainMaster)}`,
-        `Custom payload API: ${customPayloadApiRoot(onChainMaster)}`,
-        `jetton.json (on-chain): ${jettonMetadataUrl(onChainMaster)}`,
+        `Merkle dump: ${ourMetadataUri.replace(/\/jetton\.json.*$/, '/merkle-dump')}`,
+        `Custom payload API: ${ourMetadataUri.replace(/\/jetton\.json.*$/, '')}`,
         `Recipients: see /wallets batch endpoint`,
         'Please refresh metadata cache and index mintless_info for Tonscan / MyTonWallet.',
     ].join('\n');

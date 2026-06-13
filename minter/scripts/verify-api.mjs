@@ -9,9 +9,7 @@ const MASTER = process.argv[3] ?? '0:d0043121d386c3664a8a77978223a024a954e707c7b
 const ADMIN = '0:d6e5c1384420cd5bf2b4658839af145171b50550e76e6f0d6365aa5c437c3dbd';
 const ZERO = '0:0000000000000000000000000000000000000000000000000000000000000000';
 const MERKLE = '6369ec5ced9f94c8414f9bbfe374d38c7507f1983671799d91e00a4649369d3f';
-const FRIENDLY = 'EQDQBDEh04bDZkqKd5eCI6AkqVTnB8e27xXmrn5509VC-xIf';
 const PATH = encodeURIComponent(MASTER).toLowerCase();
-const V1_ROOT = `/api/v1/jettons/${FRIENDLY}`;
 
 const results = [];
 
@@ -46,8 +44,7 @@ async function main() {
     const dumpUri = jettonJson.json?.mintless_merkle_dump_uri ?? '';
     record('GET jetton.json', jettonJson.res.status === 200 && jettonJson.json?.name === 'Mint', `HTTP ${jettonJson.res.status}`);
     record('jetton.json CORS', cors === '*', cors ?? 'missing');
-    record('jetton.json on-chain URIs', customUri.includes(FRIENDLY) && dumpUri.includes('merkle-dump.boc'));
-    record('jetton.json v1 custom_uri', customUri.includes('/api/v1/jettons/'), customUri);
+    record('jetton.json on-chain URIs', customUri.includes(MASTER.split(':')[1]) && dumpUri.includes(MASTER.split(':')[1]));
 
     const state = await get(`/api/jettons/${PATH}/state`);
     record('GET /state', state.res.status === 200 && state.json?.master_address === MASTER, state.json?.master_address);
@@ -74,26 +71,12 @@ async function main() {
         `count=${wallets.json?.wallets?.length ?? 0}`,
     );
 
-    const dumpBoc = await fetch(`${BASE}${V1_ROOT}/merkle-dump.boc`);
-    const dumpBocBuf = Buffer.from(await dumpBoc.arrayBuffer());
-    record('GET /merkle-dump.boc', dumpBoc.status === 200 && dumpBocBuf.length > 100, `${dumpBocBuf.length} bytes`);
-
-    const v1State = await get(`${V1_ROOT}/state`);
-    record('GET /api/v1/.../state', v1State.res.status === 200 && v1State.json?.master_address === MASTER, v1State.json?.master_address);
-
-    const v1Wallet = await get(`${V1_ROOT}/wallet/${ADMIN}`);
-    record(
-        'GET /api/v1/.../wallet',
-        v1Wallet.res.status === 200 && v1Wallet.json?.custom_payload,
-        v1Wallet.res.status === 200 ? 'ok' : `HTTP ${v1Wallet.res.status}`,
-    );
-
     const syncMeta = await get(`/api/jettons/${PATH}/sync-metadata`);
     record('GET /sync-metadata', syncMeta.res.status === 200 && syncMeta.json?.targetUri, syncMeta.json?.needsSync ? 'needs sync' : 'aligned');
 
     const compliance = await get(`/api/jettons/${PATH}/compliance`);
     const score = compliance.json?.score ?? 0;
-    const total = compliance.json?.total ?? 35;
+    const total = compliance.json?.total ?? 32;
     const failed = (compliance.json?.checks ?? []).filter((c) => !c.pass).map((c) => c.id);
     record('GET /compliance', compliance.res.status === 200 && score === total, `${score}/${total} failed=[${failed.join(', ')}]`);
 
