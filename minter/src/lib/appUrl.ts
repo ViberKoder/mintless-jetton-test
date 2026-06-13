@@ -1,5 +1,5 @@
 import { Address } from '@ton/core';
-import { masterToPath } from './master';
+import { masterToFriendlyPath, masterToPath } from './master';
 
 function isValidOrigin(url: string): boolean {
     try {
@@ -68,18 +68,20 @@ export function resolveAppUrl(headers?: Headers): string {
     return getAppUrl();
 }
 
-function masterSegment(master: Address | string, headers?: Headers): string {
-    const addr = typeof master === 'string' ? Address.parse(master) : master;
-    return masterToPath(addr);
+function masterAddress(master: Address | string): Address {
+    return typeof master === 'string' ? Address.parse(master) : master;
 }
 
+/** On-chain metadata URI keeps raw path (minter address fixpoint). */
 export function jettonMetadataUrl(master: Address | string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}/jetton.json`;
+    const addr = masterAddress(master);
+    return `${resolveAppUrl(headers)}/api/jettons/${masterToPath(addr)}/jetton.json`;
 }
 
-/** TEP-176 root URI; wallet appends `/wallet/{owner_raw}` */
+/** TEP-176 v1 root with friendly master (Tonkeeper / Egg style). */
 export function customPayloadApiRoot(master: Address | string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}`;
+    const addr = masterAddress(master);
+    return `${resolveAppUrl(headers)}/api/v1/jettons/${masterToFriendlyPath(addr)}`;
 }
 
 export function jettonClaimApiUrl(master: Address | string, headers?: Headers): string {
@@ -87,7 +89,7 @@ export function jettonClaimApiUrl(master: Address | string, headers?: Headers): 
 }
 
 export function mintlessMerkleDumpUrl(master: Address | string, headers?: Headers): string {
-    return `${resolveAppUrl(headers)}/api/jettons/${masterSegment(master, headers)}/merkle-dump`;
+    return `${customPayloadApiRoot(master, headers)}/merkle-dump.boc`;
 }
 
 /** TEP-176 batch wallets root; append `?next_from=0:...&count=N` */

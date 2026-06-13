@@ -2,7 +2,7 @@ import { Address, Cell } from '@ton/core';
 import type { Jetton } from '@prisma/client';
 import { resolveOnChainMinterAddress } from '@/lib/jettonDb';
 import { resolveAppUrl } from '@/lib/appUrl';
-import { masterToPath } from '@/lib/master';
+import { masterToFriendlyPath, masterToPath } from '@/lib/master';
 
 export type ComplianceGroup = 'onchain' | 'our_api' | 'toncenter' | 'tonapi';
 
@@ -47,8 +47,9 @@ function normalizeMerkleRoot(root: string): string {
 function includesOnChainMaster(value: string, master: Address): boolean {
     const raw = master.toRawString().toLowerCase();
     const segment = encodeURIComponent(raw).toLowerCase();
+    const friendly = masterToFriendlyPath(master).toLowerCase();
     const v = value.toLowerCase();
-    return v.includes(raw) || v.includes(segment) || v.includes(raw.split(':')[1] ?? '');
+    return v.includes(raw) || v.includes(segment) || v.includes(raw.split(':')[1] ?? '') || v.includes(friendly);
 }
 
 function metadataRowForAddress(
@@ -170,6 +171,7 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     const onChainFriendly = onChainMaster.toString({ bounceable: true, urlSafe: true });
     const appUrl = resolveAppUrl(headers);
     const path = masterToPath(onChainMaster);
+    const friendlyPath = masterToFriendlyPath(onChainMaster);
     const checks: ComplianceCheck[] = [];
 
     const push = (check: ComplianceCheck) => checks.push(check);
@@ -189,14 +191,23 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     });
 
     let dumpOk = false;
+    let dumpBocOk = false;
     try {
         const dumpRes = await fetch(`${appUrl}/api/jettons/${path}/merkle-dump`, { cache: 'no-store' });
         if (dumpRes.ok) {
             const buf = Buffer.from(await dumpRes.arrayBuffer());
             dumpOk = Cell.fromBoc(buf)[0]!.hash().toString('hex') === merkleRoot;
         }
+        const dumpBocRes = await fetch(`${appUrl}/api/v1/jettons/${friendlyPath}/merkle-dump.boc`, {
+            cache: 'no-store',
+        });
+        if (dumpBocRes.ok) {
+            const buf = Buffer.from(await dumpBocRes.arrayBuffer());
+            dumpBocOk = Cell.fromBoc(buf)[0]!.hash().toString('hex') === merkleRoot;
+        }
     } catch {
         dumpOk = false;
+        dumpBocOk = false;
     }
 
     const onChainMerkle = await fetchOnChainMerkleRoot(network, onChainRaw, tcHeaders);
@@ -242,6 +253,7 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     const jettonJson = await fetchJson(`${appUrl}/api/jettons/${path}/jetton.json`);
     const customUri = String(jettonJson?.custom_payload_api_uri ?? '');
     const dumpUri = String(jettonJson?.mintless_merkle_dump_uri ?? '');
+    const admin = jetton.adminAddress ? Address.parse(jetton.adminAddress).toRawString() : '';
 
     push({
         id: 'api.jetton_json',
@@ -252,18 +264,32 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
     push({
         id: 'api.custom_uri',
         group: 'our_api',
-        label: 'custom_payload_api_uri с on-chain master',
-        pass: includesOnChainMaster(customUri, onChainMaster),
+        label: 'custom_payload_api_uri (v1/friendly)',
+        pass: includesOnChainMaster(customUri, onChainMaster) && customUri.includes('/api/v1/jettons/'),
         note: customUri,
     });
     push({
         id: 'api.dump_uri',
         group: 'our_api',
-        label: 'mintless_merkle_dump_uri с on-chain master',
-        pass: includesOnChainMaster(dumpUri, onChainMaster),
+        label: 'mintless_merkle_dump_uri (.boc)',
+        pass: includesOnChainMaster(dumpUri, onChainMaster) && dumpUri.includes('merkle-dump.boc'),
         note: dumpUri,
     });
-
+    push({
+        id: 'api.v1_alias',
+        group: 'our_api',
+        label: '/api/v1/jettons/{friendly} alias',
+        pass: !!(await fetchJson(`${appUrl}/api/v1/jettons/${friendlyPath}/state`))?.master_address,
+        note: `${appUrl}/api/v1/jettons/${friendlyPath}`,
+    });
+    push({
+        id: 'api.friendly_wallet',
+        group: 'our_api',
+        label: '/api/v1/.../wallet/{owner}',
+        pass: admin
+            ? !!(await fetchJson(`${appUrl}/api/v1/jettons/${friendlyPath}/wallet/${admin}`))?.custom_payload
+            : false,
+    });
     const state = await fetchJson(`${appUrl}/api/jettons/${path}/state`);
     push({
         id: 'api.state',
@@ -272,7 +298,6 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         pass: state?.master_address === onChainRaw,
     });
 
-    const admin = jetton.adminAddress ? Address.parse(jetton.adminAddress).toRawString() : '';
     const walletClaim = admin ? await fetchJson(`${appUrl}/api/jettons/${path}/wallet/${admin}`) : null;
     const ourClaimReady =
         !!walletClaim?.custom_payload && !!walletClaim?.state_init && !!walletClaim?.compressed_info;
@@ -298,6 +323,12 @@ export async function runCompliance(jetton: Jetton, headers?: Headers): Promise<
         group: 'our_api',
         label: '/merkle-dump BOC',
         pass: dumpOk,
+    });
+    push({
+        id: 'api.merkle_dump_boc',
+        group: 'our_api',
+        label: '/merkle-dump.boc (v1/friendly)',
+        pass: dumpBocOk,
     });
     push({
         id: 'api.cors',
